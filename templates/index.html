@@ -4,440 +4,711 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
 <title>VICOBA — Mhazinaji Mtandao</title>
+<meta name="description" content="Mfumo wa Kisasa wa Usimamizi wa Fedha za VICOBA (Digital Treasurer).">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
-:root {
-  --primary: #0f62fe;
-  --primary-dark: #0043ce;
-  --green: #198754;
-  --green-light: #e8f5e9;
-  --wa-green: #25D366;
-  --wa-dark: #128C7E;
-  --red: #d32f2f;
-  --red-light: #ffebee;
-  --orange: #f57c00;
-  --orange-light: #fff3e0;
-  --bg: #f4f6f9;
-  --card-bg: #ffffff;
-  --text-main: #1e293b;
-  --text-muted: #64748b;
-  --border: #e2e8f0;
-  --radius: 14px;
-  --shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
-}
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-* { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg-dark: #06120e;
+    --surface-bg: rgba(15, 34, 26, 0.75);
+    --surface-card: rgba(20, 44, 34, 0.7);
+    --surface-border: rgba(45, 212, 191, 0.18);
+    --surface-hover: rgba(26, 56, 44, 0.8);
+    
+    --text-main: #f0fdf4;
+    --text-muted: #94a3b8;
+    --text-dim: #5eead4;
+    
+    --accent-emerald: #10b981;
+    --accent-emerald-glow: rgba(16, 185, 129, 0.35);
+    --accent-teal: #14b8a6;
+    --accent-cyan: #06b6d4;
+    --accent-amber: #f59e0b;
+    --accent-amber-light: rgba(245, 158, 11, 0.15);
+    --accent-rose: #f43f5e;
+    --accent-rose-light: rgba(244, 63, 94, 0.15);
+    --wa-green: #22c55e;
+    --wa-dark: #15803d;
 
-body {
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
-  background: var(--bg);
-  color: var(--text-main);
-  max-width: 520px;
-  margin: 0 auto;
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-  box-shadow: 0 0 30px rgba(0,0,0,0.06);
-}
+    --input-bg: rgba(6, 24, 18, 0.65);
+    --input-border: rgba(45, 212, 191, 0.25);
+    --input-focus: #10b981;
+    
+    --radius-xl: 24px;
+    --radius-lg: 16px;
+    --radius-md: 12px;
+    --radius-sm: 8px;
+    
+    --shadow-card: 0 10px 30px rgba(0, 0, 0, 0.4), 0 0 20px rgba(16, 185, 129, 0.05) inset;
+    --shadow-glow: 0 0 25px rgba(16, 185, 129, 0.25);
+  }
 
-/* ── Header ── */
-.header {
-  background: linear-gradient(135deg, #0f4c3a 0%, #198754 100%);
-  color: #fff;
-  padding: 14px 18px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  position: sticky;
-  top: 0;
-  z-index: 100;
-  box-shadow: 0 2px 10px rgba(0,0,0,0.12);
-}
-.header-title { display: flex; align-items: center; gap: 8px; }
-.header h1 { font-size: 18px; font-weight: 700; letter-spacing: -0.3px; }
-.health-pill {
-  font-size: 11px;
-  padding: 3px 8px;
-  border-radius: 12px;
-  background: rgba(255,255,255,0.2);
-  backdrop-filter: blur(4px);
-  color: #e8f5e9;
-  font-weight: 500;
-}
-.header .actions { display: flex; gap: 6px; }
-.header button {
-  background: rgba(255,255,255,0.18);
-  border: 1px solid rgba(255,255,255,0.3);
-  color: #fff;
-  padding: 6px 10px;
-  border-radius: 8px;
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-.header button:hover { background: rgba(255,255,255,0.3); }
+  html, body {
+    min-height: 100vh;
+    font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+    background: var(--bg-dark);
+    color: var(--text-main);
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    overflow-x: hidden;
+  }
 
-/* ── Navigation Tabs ── */
-.tabs {
-  display: flex;
-  background: #fff;
-  border-bottom: 1px solid var(--border);
-  position: sticky;
-  top: 56px;
-  z-index: 90;
-}
-.tabs button {
-  flex: 1;
-  padding: 13px 4px;
-  border: none;
-  background: none;
-  font-size: 12.5px;
-  font-weight: 600;
-  color: var(--text-muted);
-  cursor: pointer;
-  border-bottom: 3px solid transparent;
-  transition: all 0.2s ease;
-}
-.tabs button.active {
-  color: var(--green);
-  border-bottom-color: var(--green);
-  background: #fafafa;
-}
+  /* Ambient Glowing Orbs Background */
+  .bg-orbs {
+    position: fixed;
+    inset: 0;
+    overflow: hidden;
+    pointer-events: none;
+    z-index: 0;
+  }
+  .orb {
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(100px);
+    opacity: 0.35;
+    animation: floatOrb 14s ease-in-out infinite alternate;
+  }
+  .orb-1 {
+    width: 500px; height: 500px;
+    background: radial-gradient(circle, #10b981, #047857);
+    top: -150px; left: -120px;
+  }
+  .orb-2 {
+    width: 450px; height: 450px;
+    background: radial-gradient(circle, #06b6d4, #0e7490);
+    bottom: -150px; right: -120px;
+    animation-delay: -5s;
+  }
+  .orb-3 {
+    width: 350px; height: 350px;
+    background: radial-gradient(circle, #f59e0b, #b45309);
+    top: 50%; left: 60%;
+    opacity: 0.18;
+    animation-delay: -9s;
+  }
+  @keyframes floatOrb {
+    0% { transform: translate(0, 0) scale(1); }
+    50% { transform: translate(30px, -25px) scale(1.06); }
+    100% { transform: translate(-25px, 25px) scale(0.94); }
+  }
 
-/* ── Content Sections ── */
-.section { display: none; padding: 16px; flex: 1; }
-.section.active { display: block; animation: fadeIn 0.25s ease-out; }
+  /* Grid overlay */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(45, 212, 191, 0.025) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(45, 212, 191, 0.025) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 1;
+  }
 
-/* ── Input Box ── */
-.input-card {
-  background: var(--card-bg);
-  border-radius: var(--radius);
-  padding: 14px;
-  box-shadow: var(--shadow);
-  border: 1px solid var(--border);
-  margin-bottom: 16px;
-}
-.input-row { display: flex; gap: 8px; margin-bottom: 10px; }
-.input-row textarea {
-  flex: 1;
-  border: 1.5px solid var(--border);
-  outline: none;
-  resize: none;
-  font-size: 14.5px;
-  padding: 10px;
-  font-family: inherit;
-  height: 60px;
-  border-radius: 10px;
-  background: #f8fafc;
-  color: var(--text-main);
-  transition: border-color 0.2s;
-}
-.input-row textarea:focus { border-color: var(--green); background: #fff; }
-.btn-submit {
-  background: var(--green);
-  color: #fff;
-  border: none;
-  border-radius: 10px;
-  padding: 0 18px;
-  font-size: 18px;
-  font-weight: 700;
-  cursor: pointer;
-  transition: transform 0.1s, background 0.2s;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.btn-submit:active { transform: scale(0.96); }
-.btn-submit:disabled { background: #cbd5e1; cursor: not-allowed; }
+  /* Main Container */
+  .app-container {
+    width: 100%;
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 16px 40px;
+    position: relative;
+    z-index: 10;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+  }
 
-.quick-triggers { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 4px; }
-.chip {
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: 20px;
-  padding: 4px 9px;
-  font-size: 11px;
-  color: var(--text-muted);
-  cursor: pointer;
-  transition: all 0.2s;
-}
-.chip:hover { border-color: var(--green); color: var(--green); background: var(--green-light); }
+  /* ── Navigation Header ── */
+  .header {
+    background: rgba(10, 28, 21, 0.85);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    border-bottom: 1px solid var(--surface-border);
+    padding: 14px 24px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+  }
+  .header-inner {
+    max-width: 1200px;
+    margin: 0 auto;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+  .header-brand {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .brand-icon {
+    width: 40px; height: 40px;
+    background: linear-gradient(135deg, #10b981 0%, #06b6d4 100%);
+    border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 20px;
+    box-shadow: 0 4px 14px rgba(16, 185, 129, 0.4);
+  }
+  .header h1 {
+    font-size: 20px;
+    font-weight: 800;
+    letter-spacing: -0.4px;
+    background: linear-gradient(135deg, #ffffff 0%, #a7f3d0 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  
+  .pills-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .health-pill {
+    font-size: 11.5px;
+    font-weight: 600;
+    padding: 5px 12px;
+    border-radius: 20px;
+    background: rgba(16, 185, 129, 0.15);
+    border: 1px solid rgba(16, 185, 129, 0.35);
+    color: #6ee7b7;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .health-pill::before {
+    content: '';
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: #34d399;
+    box-shadow: 0 0 8px #34d399;
+  }
 
-/* ── Preview Card ── */
-.preview-card {
-  background: var(--green-light);
-  border: 2px solid var(--green);
-  border-radius: var(--radius);
-  padding: 18px;
-  margin-bottom: 16px;
-  animation: slideDown 0.3s ease-out;
-}
-.preview-card h3 { font-size: 15.5px; margin-bottom: 12px; color: var(--green); display: flex; align-items: center; gap: 6px; }
-.preview-card .detail { display: flex; justify-content: space-between; padding: 7px 0; font-size: 13.5px; border-bottom: 1px solid rgba(0,0,0,0.06); }
-.preview-card .detail:last-child { border: none; }
-.preview-card .detail .val { font-weight: 700; color: var(--text-main); }
-.preview-card .buttons { display: flex; gap: 8px; margin-top: 16px; }
-.preview-card .buttons button {
-  flex: 1;
-  padding: 11px;
-  border: none;
-  border-radius: 10px;
-  font-size: 13.5px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: opacity 0.2s;
-}
-.btn-confirm { background: var(--green); color: #fff; }
-.btn-cancel { background: #fff; color: var(--red); border: 1.5px solid var(--red); }
-.btn-wa { background: var(--wa-green); color: #fff; display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+  .header .actions {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+  .header button {
+    background: var(--surface-card);
+    border: 1px solid var(--surface-border);
+    color: var(--text-main);
+    padding: 8px 14px;
+    border-radius: var(--radius-md);
+    font-size: 13px;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .header button:hover {
+    background: var(--surface-hover);
+    border-color: var(--accent-emerald);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.2);
+  }
 
-/* ── Messages & Alerts ── */
-.message {
-  background: #fff;
-  border-radius: 12px;
-  padding: 14px 16px;
-  margin-bottom: 14px;
-  font-size: 13.5px;
-  line-height: 1.5;
-  box-shadow: var(--shadow);
-  animation: fadeIn 0.2s;
-}
-.message.error { border-left: 4px solid var(--red); color: #b91c1c; background: var(--red-light); }
-.message.success { border-left: 4px solid var(--green); color: #15803d; background: var(--green-light); }
+  /* ── Tabs Bar ── */
+  .tabs-wrapper {
+    margin: 20px 0;
+    background: rgba(10, 26, 20, 0.7);
+    backdrop-filter: blur(16px);
+    border: 1px solid var(--surface-border);
+    border-radius: var(--radius-lg);
+    padding: 6px;
+    display: flex;
+    gap: 6px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  }
+  .tabs-wrapper button {
+    flex: 1;
+    padding: 12px 16px;
+    border: none;
+    background: transparent;
+    font-size: 13.5px;
+    font-weight: 700;
+    font-family: inherit;
+    color: var(--text-muted);
+    cursor: pointer;
+    border-radius: var(--radius-md);
+    transition: all 0.25s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+  }
+  .tabs-wrapper button.active {
+    color: #ffffff;
+    background: linear-gradient(135deg, rgba(16, 185, 129, 0.85) 0%, rgba(6, 182, 212, 0.85) 100%);
+    box-shadow: 0 4px 16px rgba(16, 185, 129, 0.35);
+  }
+  .tabs-wrapper button:hover:not(.active) {
+    color: var(--text-main);
+    background: rgba(255, 255, 255, 0.05);
+  }
 
-/* ── Dashboard Cards ── */
-.stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px; }
-.stat-card {
-  background: var(--card-bg);
-  border-radius: 12px;
-  padding: 12px 14px;
-  border: 1px solid var(--border);
-  box-shadow: 0 2px 6px rgba(0,0,0,0.02);
-}
-.stat-card .label { font-size: 11px; color: var(--text-muted); font-weight: 500; margin-bottom: 3px; }
-.stat-card .value { font-size: 17px; font-weight: 700; color: var(--text-main); }
-.stat-card .value.positive { color: var(--green); }
-.stat-card .value.negative { color: var(--red); }
+  /* ── Content Sections ── */
+  .section { display: none; flex: 1; animation: fadeIn 0.3s cubic-bezier(0.16, 1, 0.3, 1); }
+  .section.active { display: block; }
 
-/* ── Tables ── */
-.table-wrap {
-  background: var(--card-bg);
-  border-radius: var(--radius);
-  overflow: hidden;
-  box-shadow: var(--shadow);
-  border: 1px solid var(--border);
-  margin-bottom: 16px;
-}
-.table-wrap .table-header {
-  padding: 12px 14px;
-  font-size: 14px;
-  font-weight: 600;
-  border-bottom: 1px solid var(--border);
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
-th, td { padding: 9px 11px; text-align: left; border-bottom: 1px solid var(--border); }
-th { background: #f8fafc; font-weight: 600; font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.3px; }
-tr:last-child td { border: none; }
-.monospace { font-variant-numeric: tabular-nums; font-weight: 600; }
-.right { text-align: right; }
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(12px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
 
-.btn-sm {
-  padding: 4px 8px;
-  font-size: 11px;
-  border-radius: 6px;
-  border: 1px solid var(--border);
-  background: #fff;
-  cursor: pointer;
-  font-weight: 500;
-  transition: all 0.2s;
-}
-.btn-sm:hover { background: var(--bg); border-color: var(--text-muted); }
-.btn-danger-sm { color: var(--red); border-color: #fca5a5; background: var(--red-light); }
-.btn-wa-sm { background: #e8f5e9; color: var(--wa-dark); border-color: #a7f3d0; font-weight: 600; }
-.btn-wa-sm:hover { background: #dcfce7; }
+  /* ── Input / Command Card ── */
+  .input-card {
+    background: var(--surface-bg);
+    backdrop-filter: blur(20px);
+    border: 1px solid var(--surface-border);
+    border-radius: var(--radius-xl);
+    padding: 24px;
+    box-shadow: var(--shadow-card);
+    margin-bottom: 24px;
+  }
+  .input-card-title {
+    font-size: 15px;
+    font-weight: 700;
+    color: #a7f3d0;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .input-row { display: flex; gap: 12px; margin-bottom: 16px; }
+  .input-row textarea {
+    flex: 1;
+    background: var(--input-bg);
+    border: 1.5px solid var(--input-border);
+    border-radius: var(--radius-md);
+    padding: 14px 16px;
+    font-size: 15px;
+    font-family: inherit;
+    color: var(--text-main);
+    outline: none;
+    resize: none;
+    height: 70px;
+    transition: all 0.25s ease;
+  }
+  .input-row textarea::placeholder { color: rgba(255, 255, 255, 0.35); }
+  .input-row textarea:focus {
+    border-color: var(--input-focus);
+    background: rgba(15, 45, 34, 0.85);
+    box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.2);
+  }
+  .btn-submit {
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    color: #ffffff;
+    border: none;
+    border-radius: var(--radius-md);
+    padding: 0 24px;
+    font-size: 22px;
+    font-weight: 800;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 16px rgba(16, 185, 129, 0.3);
+  }
+  .btn-submit:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(16, 185, 129, 0.45);
+  }
+  .btn-submit:active { transform: scale(0.96); }
+  .btn-submit:disabled { background: rgba(255, 255, 255, 0.1); cursor: not-allowed; box-shadow: none; }
 
-/* ── Search & Form Inputs ── */
-.search-box {
-  width: 100%;
-  padding: 10px 14px;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  font-size: 13px;
-  outline: none;
-  margin-bottom: 12px;
-  background: #fff;
-}
-.search-box:focus { border-color: var(--green); }
+  .quick-triggers { display: flex; gap: 8px; flex-wrap: wrap; }
+  .chip {
+    background: rgba(6, 26, 19, 0.6);
+    border: 1px solid var(--surface-border);
+    border-radius: 20px;
+    padding: 6px 14px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-dim);
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+  .chip:hover {
+    border-color: var(--accent-emerald);
+    color: #ffffff;
+    background: rgba(16, 185, 129, 0.2);
+    transform: translateY(-1px);
+  }
 
-.form-group { margin-bottom: 12px; }
-.form-group label { display: block; font-size: 12px; font-weight: 600; color: var(--text-muted); margin-bottom: 4px; }
-.form-group input { width: 100%; padding: 8px 12px; border: 1px solid var(--border); border-radius: 8px; font-size: 13.5px; outline: none; }
-.form-group input:focus { border-color: var(--green); }
+  /* ── Preview Card ── */
+  .preview-card {
+    background: rgba(16, 185, 129, 0.12);
+    border: 2px solid var(--accent-emerald);
+    border-radius: var(--radius-xl);
+    padding: 24px;
+    margin-bottom: 24px;
+    backdrop-filter: blur(20px);
+    box-shadow: 0 10px 30px rgba(16, 185, 129, 0.15);
+    animation: slideDown 0.3s ease-out;
+  }
+  @keyframes slideDown {
+    from { opacity: 0; transform: translateY(-12px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .preview-card h3 {
+    font-size: 17px;
+    font-weight: 800;
+    color: #34d399;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .preview-card .detail {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 0;
+    font-size: 14px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  }
+  .preview-card .detail:last-child { border: none; }
+  .preview-card .detail .val {
+    font-weight: 700;
+    color: var(--text-main);
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .preview-card .buttons { display: flex; gap: 12px; margin-top: 20px; }
+  .preview-card .buttons button {
+    flex: 1;
+    padding: 13px;
+    border: none;
+    border-radius: var(--radius-md);
+    font-size: 14px;
+    font-weight: 700;
+    font-family: inherit;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+  .btn-confirm { background: linear-gradient(135deg, #10b981, #059669); color: #fff; box-shadow: 0 4px 14px rgba(16,185,129,0.3); }
+  .btn-confirm:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(16,185,129,0.4); }
+  .btn-cancel { background: rgba(255,255,255,0.08); color: var(--accent-rose); border: 1.5px solid rgba(244,63,94,0.4); }
+  .btn-cancel:hover { background: var(--accent-rose-light); }
 
-/* ── Modal / Overlay ── */
-.modal-overlay {
-  display: none;
-  position: fixed;
-  top: 0; left: 0; right: 0; bottom: 0;
-  background: rgba(0,0,0,0.45);
-  z-index: 1000;
-  align-items: center;
-  justify-content: center;
-  padding: 16px;
-  backdrop-filter: blur(3px);
-}
-.modal-overlay.active { display: flex; animation: fadeIn 0.2s; }
-.modal-card {
-  background: #fff;
-  border-radius: 16px;
-  max-width: 480px;
-  width: 100%;
-  max-height: 85vh;
-  overflow-y: auto;
-  padding: 18px;
-  box-shadow: 0 10px 25px rgba(0,0,0,0.15);
-}
-.modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
-.modal-title { font-size: 16px; font-weight: 700; }
-.btn-close { background: none; border: none; font-size: 22px; color: var(--text-muted); cursor: pointer; }
+  /* ── Alerts & Messages ── */
+  .message {
+    background: var(--surface-bg);
+    border-radius: var(--radius-lg);
+    padding: 16px 20px;
+    margin-bottom: 20px;
+    font-size: 14px;
+    line-height: 1.6;
+    border: 1px solid var(--surface-border);
+    backdrop-filter: blur(16px);
+  }
+  .message.error { border-left: 5px solid var(--accent-rose); color: #fca5a5; background: var(--accent-rose-light); }
+  .message.success { border-left: 5px solid var(--accent-emerald); color: #a7f3d0; background: rgba(16, 185, 129, 0.15); }
 
-/* ── Animations ── */
-@keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
-@keyframes slideDown { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }
-.loading {
-  display: inline-block;
-  width: 16px; height: 16px;
-  border: 2px solid rgba(255,255,255,0.4);
-  border-top-color: #fff;
-  border-radius: 50%;
-  animation: spin 0.6s linear infinite;
-}
-@keyframes spin { to { transform: rotate(360deg); } }
+  /* ── Dashboard Grid ── */
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+  .stat-card {
+    background: var(--surface-bg);
+    backdrop-filter: blur(16px);
+    border-radius: var(--radius-lg);
+    padding: 18px 20px;
+    border: 1px solid var(--surface-border);
+    box-shadow: var(--shadow-card);
+    transition: all 0.25s ease;
+    position: relative;
+    overflow: hidden;
+  }
+  .stat-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0; height: 3px;
+    background: linear-gradient(90deg, var(--accent-emerald), var(--accent-cyan));
+    opacity: 0.7;
+  }
+  .stat-card:hover {
+    transform: translateY(-2px);
+    border-color: rgba(45, 212, 191, 0.4);
+  }
+  .stat-card .label { font-size: 12px; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; }
+  .stat-card .value { font-size: 22px; font-weight: 800; color: var(--text-main); font-family: 'JetBrains Mono', monospace; }
+  .stat-card .value.positive { color: #34d399; }
+  .stat-card .value.negative { color: #f87171; }
 
-/* ── Badge ── */
-.badge { font-size: 10.5px; padding: 2px 7px; border-radius: 10px; font-weight: 600; display: inline-block; }
-.badge-active { background: #dcfce7; color: #15803d; }
-.badge-exited { background: #fee2e2; color: #b91c1c; }
-.badge-mpesa { background: #e0f2fe; color: #0369a1; font-family: monospace; }
+  /* ── Table Container ── */
+  .table-wrap {
+    background: var(--surface-bg);
+    backdrop-filter: blur(20px);
+    border-radius: var(--radius-xl);
+    overflow: hidden;
+    box-shadow: var(--shadow-card);
+    border: 1px solid var(--surface-border);
+    margin-bottom: 24px;
+  }
+  .table-header {
+    padding: 16px 20px;
+    font-size: 15px;
+    font-weight: 700;
+    color: #a7f3d0;
+    border-bottom: 1px solid var(--surface-border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: rgba(6, 26, 19, 0.4);
+  }
+  table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+  th, td { padding: 12px 16px; text-align: left; border-bottom: 1px solid rgba(255, 255, 255, 0.06); }
+  th { background: rgba(6, 24, 18, 0.8); font-weight: 700; font-size: 11.5px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.6px; }
+  tr:last-child td { border: none; }
+  tr:hover td { background: rgba(255, 255, 255, 0.025); }
+  .monospace { font-family: 'JetBrains Mono', monospace; font-weight: 600; }
+  .right { text-align: right; }
+
+  /* Buttons inside tables */
+  .btn-sm {
+    padding: 6px 12px;
+    font-size: 12px;
+    font-weight: 600;
+    font-family: inherit;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--surface-border);
+    background: var(--surface-card);
+    color: var(--text-main);
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+  .btn-sm:hover { background: var(--surface-hover); border-color: var(--accent-emerald); }
+  .btn-danger-sm { color: #fca5a5; border-color: rgba(244,63,94,0.4); background: var(--accent-rose-light); }
+  .btn-danger-sm:hover { background: rgba(244,63,94,0.3); }
+  .btn-wa-sm { background: rgba(34, 197, 94, 0.15); color: #4ade80; border-color: rgba(34, 197, 94, 0.4); font-weight: 600; }
+  .btn-wa-sm:hover { background: rgba(34, 197, 94, 0.3); }
+
+  /* Inputs & Searches */
+  .search-box {
+    width: 100%;
+    padding: 12px 16px;
+    border: 1.5px solid var(--input-border);
+    border-radius: var(--radius-md);
+    font-size: 14px;
+    font-family: inherit;
+    outline: none;
+    margin-bottom: 16px;
+    background: var(--input-bg);
+    color: var(--text-main);
+    transition: all 0.25s ease;
+  }
+  .search-box:focus { border-color: var(--accent-emerald); background: rgba(15, 45, 34, 0.85); box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.2); }
+
+  .form-group { margin-bottom: 16px; }
+  .form-group label { display: block; font-size: 12px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; }
+  .form-group input, .form-group select {
+    width: 100%;
+    padding: 11px 14px;
+    border: 1.5px solid var(--input-border);
+    border-radius: var(--radius-md);
+    font-size: 14px;
+    font-family: inherit;
+    outline: none;
+    background: var(--input-bg);
+    color: var(--text-main);
+    transition: all 0.25s ease;
+  }
+  .form-group input:focus, .form-group select:focus { border-color: var(--accent-emerald); background: rgba(15, 45, 34, 0.85); }
+  .form-group select option { background: #061812; color: #fff; }
+
+  /* ── Modal Dialog ── */
+  .modal-overlay {
+    display: none;
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0, 0, 0, 0.7);
+    z-index: 1000;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    backdrop-filter: blur(8px);
+  }
+  .modal-overlay.active { display: flex; animation: fadeIn 0.25s ease-out; }
+  .modal-card {
+    background: rgba(12, 30, 23, 0.95);
+    backdrop-filter: blur(28px);
+    border: 1px solid var(--surface-border);
+    border-radius: var(--radius-xl);
+    max-width: 520px;
+    width: 100%;
+    max-height: 88vh;
+    overflow-y: auto;
+    padding: 24px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.7), 0 0 30px rgba(16, 185, 129, 0.1) inset;
+  }
+  .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 12px; }
+  .modal-title { font-size: 18px; font-weight: 800; color: #34d399; }
+  .btn-close { background: none; border: none; font-size: 26px; color: var(--text-muted); cursor: pointer; transition: color 0.2s; }
+  .btn-close:hover { color: #ffffff; }
+
+  /* Badges & Status */
+  .badge { font-size: 11px; padding: 3px 9px; border-radius: 12px; font-weight: 700; display: inline-block; }
+  .badge-active { background: rgba(34, 197, 94, 0.2); color: #4ade80; border: 1px solid rgba(34, 197, 94, 0.4); }
+  .badge-exited { background: rgba(244, 63, 94, 0.2); color: #fca5a5; border: 1px solid rgba(244, 63, 94, 0.4); }
+  .badge-mpesa { background: rgba(6, 182, 212, 0.2); color: #67e8f9; border: 1px solid rgba(6, 182, 212, 0.4); font-family: 'JetBrains Mono', monospace; }
+
+  .empty { text-align: center; color: var(--text-muted); padding: 32px !important; font-size: 14px; }
+  .loading {
+    display: inline-block;
+    width: 18px; height: 18px;
+    border: 2px solid rgba(255,255,255,0.3);
+    border-top-color: #34d399;
+    border-radius: 50%;
+    animation: spin 0.6s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
 </style>
 </head>
 <body>
 
+<div class="bg-orbs">
+  <div class="orb orb-1"></div>
+  <div class="orb orb-2"></div>
+  <div class="orb orb-3"></div>
+</div>
+
 <!-- Header -->
 <div class="header">
-  <div class="header-title">
-    <h1>💰 VICOBA</h1>
-    <span class="health-pill" id="healthPill">Mingatio: ...</span>
-  </div>
-  <div class="actions">
-    <button onclick="openSettingsModal()">⚙️ Mipangilio</button>
-    <button onclick="exportCSV()">📄 CSV</button>
-    <button onclick="location='/logout'">Kutoka</button>
-  </div>
-</div>
-
-<!-- Navigation Tabs -->
-<div class="tabs">
-  <button id="tabBtn-input" class="active" onclick="showTab('input')">Ingiza</button>
-  <button id="tabBtn-dash" onclick="showTab('dash')">Dashboard</button>
-  <button id="tabBtn-members" onclick="showTab('members')">Wanachama</button>
-  <button id="tabBtn-meeting" onclick="showTab('meeting')">Kutaniko</button>
-</div>
-
-<!-- Tab 1: Input -->
-<div id="tab-input" class="section active">
-  <div class="input-card">
-    <form id="inputForm" onsubmit="handleParse(event)">
-      <div class="input-row">
-        <textarea id="cmdInput" placeholder="Andika maagizo hapa... mfano: Amina amelipa hisa 5000 QX84920193" autofocus></textarea>
-        <button type="submit" id="parseBtn" class="btn-submit">→</button>
+  <div class="header-inner">
+    <div class="header-brand">
+      <div class="brand-icon">💰</div>
+      <div>
+        <h1>VICOBA</h1>
       </div>
-    </form>
-    <div class="quick-triggers">
-      <span class="chip" onclick="fillTrigger('Amina amelipa hisa 5000, jamii 1000 ref QX84920193')">+ Mchango (M-Pesa)</span>
-      <span class="chip" onclick="fillTrigger('Juma kopa 50000 wadhamini ni Fatuma')">+ Mkopo</span>
-      <span class="chip" onclick="fillTrigger('Juma amelipa mkopo 10000 ref QX9920112')">+ Rejesho</span>
-      <span class="chip" onclick="fillTrigger('ada ya kikundi 2000')">+ Ada</span>
-      <span class="chip" onclick="fillTrigger('faini ya Juma 1000')">+ Faini</span>
-      <span class="chip" onclick="fillTrigger('taarifa ya Amina')">🔍 Taarifa</span>
-      <span class="chip" onclick="fillTrigger('ondoa mwanachama Juma')">🚪 Kutoka</span>
+      <div class="pills-group">
+        <span class="health-pill" id="healthPill">Mingatio: ...</span>
+        <span class="health-pill" id="userChip" style="display:none"></span>
+      </div>
     </div>
-  </div>
-
-  <div id="previewArea"></div>
-  <div id="messageArea"></div>
-</div>
-
-<!-- Tab 2: Dashboard -->
-<div id="tab-dash" class="section">
-  <div class="stats-grid" id="statsGrid"></div>
-
-  <div class="table-wrap">
-    <div class="table-header">
-      <span>Wanachama — Muhtasari</span>
-      <button class="btn-sm" onclick="loadDashboard()">🔄 Subiri</button>
-    </div>
-    <div style="overflow-x:auto">
-      <table>
-        <thead>
-          <tr>
-            <th>Jina</th>
-            <th class="right">Hisa</th>
-            <th class="right">Akiba</th>
-            <th class="right">Deni</th>
-          </tr>
-        </thead>
-        <tbody id="memberTable"></tbody>
-      </table>
-    </div>
-  </div>
-
-  <button onclick="showGawio()" style="width:100%;padding:12px;background:#fff3e0;border:1.5px solid #ff9800;color:#e65100;border-radius:12px;font-size:13.5px;font-weight:600;cursor:pointer;margin-bottom:16px">📊 Makadirio ya Gawio (Profit Distribution)</button>
-  <div id="gawioArea"></div>
-</div>
-
-<!-- Tab 3: Members -->
-<div id="tab-members" class="section">
-  <button onclick="openRegisterModal()" style="width:100%;padding:12px;background:var(--green);color:#fff;border:none;border-radius:10px;font-size:13.5px;font-weight:600;cursor:pointer;margin-bottom:12px">➕ Ongeza Mwanachama Mpya</button>
-  <input type="text" class="search-box" id="memberSearchInput" placeholder="Tafuta kwa jina au namba (mfano: BSDA-001)..." oninput="filterMembersTable()">
-
-  <div class="table-wrap">
-    <div class="table-header">
-      <span>Orodha ya Wanachama</span>
-      <button class="btn-sm" onclick="loadMembers()">🔄 Anza Upya</button>
-    </div>
-    <div style="overflow-x:auto">
-      <table>
-        <thead>
-          <tr>
-            <th>Namba</th>
-            <th>Jina</th>
-            <th>Hali</th>
-            <th class="right">Kitendo</th>
-          </tr>
-        </thead>
-        <tbody id="fullMemberTable"></tbody>
-      </table>
+    <div class="actions">
+      <button id="adminUsersBtn" onclick="openUsersModal()" style="display:none">👥 Watumiaji</button>
+      <button id="settingsBtn" onclick="openSettingsModal()">⚙️ Mipangilio</button>
+      <button onclick="exportCSV()">📄 CSV</button>
+      <button onclick="location='/logout'">Kutoka</button>
     </div>
   </div>
 </div>
 
-<!-- Tab 4: Meeting -->
-<div id="tab-meeting" class="section">
-  <div style="display:flex;gap:8px;margin-bottom:12px">
-    <button onclick="loadMeeting()" style="flex:1;padding:11px;background:var(--green);color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:600;cursor:pointer">Ripoti ya Leo</button>
-    <button onclick="loadUnpaid()" style="flex:1;padding:11px;background:#fff3e0;color:#e65100;border:1.5px solid #ff9800;border-radius:10px;font-size:13px;font-weight:600;cursor:pointer">Hawajalipa Leo?</button>
+<div class="app-container">
+  <!-- Navigation Tabs -->
+  <div class="tabs-wrapper">
+    <button id="tabBtn-input" class="active" onclick="showTab('input')">⚡ Ingiza Maagizo</button>
+    <button id="tabBtn-dash" onclick="showTab('dash')">📊 Dashboard</button>
+    <button id="tabBtn-members" onclick="showTab('members')">👥 Wanachama</button>
+    <button id="tabBtn-meeting" onclick="showTab('meeting')">📑 Kutaniko</button>
   </div>
-  <div id="meetingArea"></div>
+
+  <!-- Tab 1: Input Command Terminal -->
+  <div id="tab-input" class="section active">
+    <div class="input-card">
+      <div class="input-card-title">✨ Injini ya Swahili Commands & AI</div>
+      <form id="inputForm" onsubmit="handleParse(event)">
+        <div class="input-row">
+          <textarea id="cmdInput" placeholder="Andika maagizo hapa... mfano: Amina amelipa hisa 5000 QX84920193" autofocus></textarea>
+          <button type="submit" id="parseBtn" class="btn-submit">→</button>
+        </div>
+      </form>
+      <div class="quick-triggers">
+        <span class="chip" onclick="fillTrigger('Amina amelipa hisa 5000, jamii 1000 ref QX84920193')">+ Mchango (M-Pesa)</span>
+        <span class="chip" onclick="fillTrigger('Juma kopa 50000 wadhamini ni Fatuma')">+ Mkopo</span>
+        <span class="chip" onclick="fillTrigger('Juma amelipa mkopo 10000 ref QX9920112')">+ Rejesho</span>
+        <span class="chip" onclick="fillTrigger('ada ya kikundi 2000')">+ Ada</span>
+        <span class="chip" onclick="fillTrigger('faini ya Juma 1000')">+ Faini</span>
+        <span class="chip" onclick="fillTrigger('taarifa ya Amina')">🔍 Taarifa</span>
+        <span class="chip" onclick="fillTrigger('ondoa mwanachama Juma')">🚪 Kutoka</span>
+      </div>
+    </div>
+
+    <div id="previewArea"></div>
+    <div id="messageArea"></div>
+  </div>
+
+  <!-- Tab 2: Dashboard Grid -->
+  <div id="tab-dash" class="section">
+    <div class="stats-grid" id="statsGrid"></div>
+
+    <div class="table-wrap">
+      <div class="table-header">
+        <span>Wanachama — Muhtasari wa Akiba & Hisa</span>
+        <button class="btn-sm" onclick="loadDashboard()">🔄 Subiri</button>
+      </div>
+      <div style="overflow-x:auto">
+        <table>
+          <thead>
+            <tr>
+              <th>Jina la Mwanachama</th>
+              <th class="right">Hisa (TSH)</th>
+              <th class="right">Akiba (TSH)</th>
+              <th class="right">Deni Mkopo (TSH)</th>
+            </tr>
+          </thead>
+          <tbody id="memberTable"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <button onclick="showGawio()" style="width:100%;padding:14px;background:rgba(245, 158, 11, 0.15);border:1.5px solid var(--accent-amber);color:#fcd34d;border-radius:var(--radius-lg);font-size:14px;font-weight:700;cursor:pointer;margin-bottom:24px;transition:all 0.2s">📊 Makadirio ya Gawio (Profit Distribution Preview)</button>
+    <div id="gawioArea"></div>
+  </div>
+
+  <!-- Tab 3: Members Registry -->
+  <div id="tab-members" class="section">
+    <button id="registerMemberBtn" onclick="openRegisterModal()" style="width:100%;padding:14px;background:linear-gradient(135deg, #10b981, #059669);color:#fff;border:none;border-radius:var(--radius-lg);font-size:14px;font-weight:700;cursor:pointer;margin-bottom:16px;box-shadow:0 4px 16px rgba(16,185,129,0.3)">➕ Sajili Mwanachama Mpya</button>
+    <input type="text" class="search-box" id="memberSearchInput" placeholder="Tafuta kwa jina au namba (mfano: BSDA-001)..." oninput="filterMembersTable()">
+
+    <div class="table-wrap">
+      <div class="table-header">
+        <span>Orodha Kamili ya Wanachama</span>
+        <button class="btn-sm" onclick="loadMembers()">🔄 Anza Upya</button>
+      </div>
+      <div style="overflow-x:auto">
+        <table>
+          <thead>
+            <tr>
+              <th>Namba</th>
+              <th>Jina</th>
+              <th>Hali</th>
+              <th class="right">Kitendo</th>
+            </tr>
+          </thead>
+          <tbody id="fullMemberTable"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tab 4: Meeting Report -->
+  <div id="tab-meeting" class="section">
+    <div style="display:flex;gap:12px;margin-bottom:16px">
+      <button onclick="loadMeeting()" style="flex:1;padding:13px;background:linear-gradient(135deg, #10b981, #059669);color:#fff;border:none;border-radius:var(--radius-md);font-size:13.5px;font-weight:700;cursor:pointer">Ripoti ya Kutaniko Leo</button>
+      <button onclick="loadUnpaid()" style="flex:1;padding:13px;background:rgba(245,158,11,0.15);color:#fcd34d;border:1.5px solid var(--accent-amber);border-radius:var(--radius-md);font-size:13.5px;font-weight:700;cursor:pointer">Hawajalipa Leo?</button>
+    </div>
+    <div id="meetingArea"></div>
+  </div>
 </div>
 
-<!-- Main App Modal -->
+<!-- Main App Modal Overlay -->
 <div class="modal-overlay" id="appModal">
   <div class="modal-card">
     <div class="modal-header">
@@ -452,13 +723,114 @@ tr:last-child td { border: none; }
 let pendingIntent = null;
 let allMembersCache = [];
 let groupSettings = {};
+let currentUser = null;
 
 // ── App Startup ──
 document.addEventListener('DOMContentLoaded', () => {
+  fetchCurrentUser();
   checkHealth();
   fetchSettings();
   loadDashboard();
 });
+
+// ── Current User & Role Visibility ──
+async function fetchCurrentUser() {
+  try {
+    const res = await fetch('/api/me');
+    if (res.status === 401) { location.href = '/login'; return; }
+    const data = await res.json();
+    if (!data.ok) { location.href = '/login'; return; }
+    currentUser = data.user;
+    const chip = document.getElementById('userChip');
+    if (chip) {
+      chip.textContent = currentUser.name + ' · ' + currentUser.role_label;
+      chip.style.display = '';
+    }
+    applyRoleUI();
+  } catch(e) { location.href = '/login'; }
+}
+
+function applyRoleUI() {
+  if (!currentUser) return;
+  const isAdmin = currentUser.role === 'mwenyekiti';
+  const canInput = currentUser.role !== 'katibu';
+
+  document.getElementById('settingsBtn').style.display = isAdmin ? '' : 'none';
+  document.getElementById('adminUsersBtn').style.display = isAdmin ? '' : 'none';
+
+  if (!canInput) {
+    const inputTab = document.getElementById('tabBtn-input');
+    const inputSec = document.getElementById('tab-input');
+    const regBtn = document.getElementById('registerMemberBtn');
+    if (inputTab) inputTab.style.display = 'none';
+    if (inputSec) inputSec.style.display = 'none';
+    if (regBtn) regBtn.style.display = 'none';
+    showTab('dash');
+  }
+}
+
+// ── Chairperson: User Management ──
+async function openUsersModal() {
+  openModal('👥 Watumiaji & Madaraka', '<div id="usrBody" class="loading"></div> Kupakia...');
+  await loadUsersPanel();
+}
+
+async function loadUsersPanel() {
+  const box = document.getElementById('usrBody');
+  if (!box) return;
+  let html = '';
+  try {
+    const res = await fetch('/api/admin/users');
+    const data = await res.json();
+    if (data.ok && data.users) {
+      html += '<table style="width:100%;font-size:13px;border-collapse:collapse">';
+      html += '<tr><th style="text-align:left;padding:6px">Jina</th><th style="text-align:left;padding:6px">Jukumu</th><th style="text-align:left;padding:6px">Simu</th></tr>';
+      const roleNames = { mwenyekiti: 'Mwenyekiti', mhazinaji: 'Mhazinaji', katibu: 'Katibu' };
+      for (const u of data.users) {
+        html += '<tr><td style="padding:6px">' + esc(u.name) + '</td>';
+        html += '<td style="padding:6px">' + (roleNames[u.role] || u.role) + '</td>';
+        html += '<td style="padding:6px" class="monospace">' + esc(u.phone || '—') + '</td></tr>';
+      }
+      html += '</table>';
+    }
+  } catch(e) { html += '<i>Imeshindikana kupakia watumiaji.</i>'; }
+  html += '<hr style="margin:16px 0;border:none;border-top:1px solid rgba(255,255,255,0.1)">';
+  html += '<form onsubmit="submitUser(event)">';
+  html += '<div class="form-group"><label>Jina Kamili *</label><input id="usr_name" required autofocus></div>';
+  html += '<div class="form-group"><label>Jukumu</label><select id="usr_role">';
+  html += '<option value="katibu">Katibu (Msajili)</option>';
+  html += '<option value="mhazinaji">Mhazinaji (Treasurer)</option>';
+  html += '<option value="mwenyekiti">Mwenyekiti (Chair)</option></select></div>';
+  html += '<div class="form-group"><label>Namba ya Simu (WhatsApp, hiari)</label><input id="usr_phone" placeholder="mfano: 0712345678"></div>';
+  html += '<button type="submit" class="btn-confirm" style="width:100%;padding:12px;margin-top:8px">➕ Ongeza Mtumiaji</button>';
+  html += '</form><div id="usrResult" style="margin-top:12px"></div>';
+  box.innerHTML = html;
+}
+
+async function submitUser(e) {
+  e.preventDefault();
+  const fd = new FormData();
+  fd.append('name', document.getElementById('usr_name').value.trim());
+  fd.append('role', document.getElementById('usr_role').value);
+  fd.append('phone', document.getElementById('usr_phone').value.trim());
+  try {
+    const res = await fetch('/api/admin/users', { method: 'POST', body: fd });
+    const data = await res.json();
+    if (data.ok) {
+      await loadUsersPanel();
+      const note = document.getElementById('usrResult');
+      if (note) {
+        note.innerHTML = '<div style="padding:12px;background:rgba(16,185,129,0.2);border-radius:10px;border:1px solid rgba(16,185,129,0.4)">'
+          + '<b>' + esc(data.message) + '</b><br>'
+          + 'PIN ya muda: <b style="font-size:20px;letter-spacing:2px;font-family:monospace">' + esc(data.temp_pin) + '</b><br>'
+          + '<span style="color:#fca5a5">' + esc(data.warning) + '</span></div>';
+      }
+    } else {
+      const box = document.getElementById('usrResult');
+      if (box) box.innerHTML = '<div style="padding:12px;background:rgba(244,63,94,0.2);border-radius:10px;border:1px solid rgba(244,63,94,0.4)">' + esc(data.error || 'Hitilafu') + '</div>';
+    }
+  } catch(err) { alert('Hitilafu: ' + err.message); }
+}
 
 // ── Fetch Settings ──
 async function fetchSettings() {
@@ -477,10 +849,13 @@ async function checkHealth() {
     const pill = document.getElementById('healthPill');
     if (data.ok && data.invariant_ok) {
       pill.textContent = 'Mingatio: Sawa ✓';
-      pill.style.background = 'rgba(255,255,255,0.2)';
+      pill.style.background = 'rgba(16, 185, 129, 0.2)';
+      pill.style.borderColor = 'rgba(16, 185, 129, 0.4)';
     } else {
       pill.textContent = 'Mingatio: Hitilafu!';
-      pill.style.background = '#d32f2f';
+      pill.style.background = 'rgba(244, 63, 94, 0.2)';
+      pill.style.borderColor = 'rgba(244, 63, 94, 0.4)';
+      pill.style.color = '#fca5a5';
     }
   } catch(e) {
     document.getElementById('healthPill').textContent = 'Kizingiti';
@@ -490,7 +865,7 @@ async function checkHealth() {
 // ── Tab Navigation ──
 function showTab(name) {
   document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
-  document.querySelectorAll('.tabs button').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.tabs-wrapper button').forEach(b => b.classList.remove('active'));
   document.getElementById('tab-' + name).classList.add('active');
   document.getElementById('tabBtn-' + name).classList.add('active');
   if (name === 'dash') loadDashboard();
@@ -544,7 +919,7 @@ function showPreview(intent, raw) {
     executeQuery(intent);
     return;
   }
-  let html = '<div class="preview-card"><h3>Thibitisha Uingizaji Data</h3>';
+  let html = '<div class="preview-card"><h3>✨ Thibitisha Uingizaji Data</h3>';
   const labels = {
     register: 'Msajili Mwanachama',
     contribute: 'Mchango wa Wanachama',
@@ -568,7 +943,7 @@ function showPreview(intent, raw) {
       }
       html += '<div class="detail"><span>' + k.charAt(0).toUpperCase() + k.slice(1) + '</span><span class="val">' + Number(v).toLocaleString() + ' TSH</span></div>';
     }
-    html += '<div class="detail" style="border-top:2px solid var(--green);padding-top:10px"><span><strong>Jumla</strong></span><span class="val" style="color:var(--green)"><strong>' + Number(intent.amount).toLocaleString() + ' TSH</strong></span></div>';
+    html += '<div class="detail" style="border-top:2px solid var(--accent-emerald);padding-top:12px"><span><strong>Jumla</strong></span><span class="val" style="color:#34d399;font-size:16px"><strong>' + Number(intent.amount).toLocaleString() + ' TSH</strong></span></div>';
   } else if (intent.amount > 0) {
     html += '<div class="detail"><span>Kiasi</span><span class="val">' + Number(intent.amount).toLocaleString() + ' TSH</span></div>';
   }
@@ -578,7 +953,7 @@ function showPreview(intent, raw) {
 
   html += '<div class="buttons">';
   html += '<button class="btn-cancel" onclick="cancelPreview()">Futa</button>';
-  html += '<button class="btn-confirm" onclick="handleCommit()">✓ Thibitisha</button>';
+  html += '<button class="btn-confirm" onclick="handleCommit()">✓ Thibitisha Kitendo</button>';
   html += '</div></div>';
   document.getElementById('previewArea').innerHTML = html;
 }
@@ -593,7 +968,7 @@ function cancelPreview() {
 async function handleCommit() {
   if (!pendingIntent) return;
   const area = document.getElementById('previewArea');
-  area.innerHTML = '<div class="message"><span class="loading"></span> Inatekeleza mahesabu...</div>';
+  area.innerHTML = '<div class="message"><span class="loading"></span> Inatekeleza mahesabu kwenye ledger...</div>';
 
   try {
     const fd = new FormData();
@@ -604,7 +979,6 @@ async function handleCommit() {
       let msgHtml = '<div class="message success">';
       msgHtml += esc(data.message);
       
-      // Add WhatsApp Receipt button if receipt info is available
       const r = data;
       if (['contribute', 'repay', 'loan', 'fee', 'fine'].includes(r.action)) {
         const phone = r.member_phone || '';
@@ -619,7 +993,7 @@ async function handleCommit() {
           `Ahsante kwa uwajibikaji!`
         );
         const waUrl = phone ? `https://wa.me/255${phone.replace(/^0/,'')}?text=${text}` : `https://api.whatsapp.com/send?text=${text}`;
-        msgHtml += `<br><br><a href="${waUrl}" target="_blank" class="btn-sm btn-wa-sm" style="display:inline-block;padding:8px 14px;border-radius:8px;text-decoration:none;font-size:13px">📲 Tuma Risiti WhatsApp</a>`;
+        msgHtml += `<br><br><a href="${waUrl}" target="_blank" class="btn-sm btn-wa-sm" style="display:inline-block;padding:8px 16px;border-radius:10px;text-decoration:none;font-size:13px">📲 Tuma Risiti WhatsApp</a>`;
       }
       msgHtml += '</div>';
 
@@ -639,7 +1013,7 @@ async function handleCommit() {
 // ── Read Queries ──
 async function executeQuery(intent) {
   const area = document.getElementById('messageArea');
-  area.innerHTML = '<div class="message"><span class="loading"></span> Inatafuta taarifa...</div>';
+  area.innerHTML = '<div class="message"><span class="loading"></span> Inatafuta taarifa kwenye database...</div>';
   try {
     let url;
     if (intent.action === 'member_statement' && intent.member) url = '/api/statement/' + encodeURIComponent(intent.member);
@@ -676,7 +1050,7 @@ function renderUnpaid(data) {
         `Ahsante!`
       );
       const waUrl = phone ? `https://wa.me/255${phone.replace(/^0/,'')}?text=${text}` : `https://api.whatsapp.com/send?text=${text}`;
-      html += `<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid rgba(0,0,0,0.05)">` +
+      html += `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.08)">` +
               `<span>• <strong>${esc(m.name)}</strong> (${m.member_no})</span>` +
               `<a href="${waUrl}" target="_blank" class="btn-sm btn-wa-sm" style="text-decoration:none">📲 Kikumbusha</a></div>`;
     });
@@ -705,10 +1079,10 @@ async function loadDashboard() {
     let rows = '';
     (g.members || []).forEach(m => {
       rows += '<tr>';
-      rows += '<td><a href="javascript:void(0)" onclick="viewMemberStatement(\'' + esc(m.name) + '\')" style="color:var(--primary);text-decoration:none;font-weight:600">' + esc(m.name) + '</a></td>';
+      rows += '<td><a href="javascript:void(0)" onclick="viewMemberStatement(\'' + esc(m.name) + '\')" style="color:#67e8f9;text-decoration:none;font-weight:700">' + esc(m.name) + '</a></td>';
       rows += '<td class="right monospace">' + m.hisa.toLocaleString() + '</td>';
       rows += '<td class="right monospace">' + m.akiba.toLocaleString() + '</td>';
-      rows += '<td class="right monospace" style="color:' + (m.deni_lichangiwa > 0 ? 'var(--red)' : 'var(--green)') + '">' + m.deni_lichangiwa.toLocaleString() + '</td>';
+      rows += '<td class="right monospace" style="color:' + (m.deni_lichangiwa > 0 ? '#f87171' : '#34d399') + '">' + m.deni_lichangiwa.toLocaleString() + '</td>';
       rows += '</tr>';
     });
     document.getElementById('memberTable').innerHTML = rows || '<tr><td colspan="4" class="empty">Hakuna wanachama waliosajiliwa bado.</td></tr>';
@@ -717,17 +1091,17 @@ async function loadDashboard() {
 
 function statCard(label, value, cls) {
   const display = typeof value === 'number' ? value.toLocaleString() : value;
-  return '<div class="stat-card"><div class="label">' + label + '</div><div class="value ' + (cls||'') + '">' + display + (typeof value === 'number' ? ' <span style="font-size:11px">TSH</span>' : '') + '</div></div>';
+  return '<div class="stat-card"><div class="label">' + label + '</div><div class="value ' + (cls||'') + '">' + display + (typeof value === 'number' ? ' <span style="font-size:12px;font-weight:500;color:var(--text-muted)">TSH</span>' : '') + '</div></div>';
 }
 
 function showGawio() {
   fetch('/api/gawio').then(r=>r.json()).then(data => {
     if (!data.ok) return;
-    let html = '<div class="table-wrap"><div class="table-header"><span>Makadirio ya Gawio (Distribution)</span></div>';
-    html += '<p style="padding:10px 14px;font-size:12.5px;color:var(--text-muted)">Mapato yanayogawika: <strong>' + data.distributable.toLocaleString() + ' TSH</strong> · Kiwango: <strong>' + data.per_hisa_rate + ' TSH</strong> kwa kila hisa 1</p>';
+    let html = '<div class="table-wrap"><div class="table-header"><span>Makadirio ya Gawio (Profit Distribution Preview)</span></div>';
+    html += '<p style="padding:14px 20px;font-size:13.5px;color:var(--text-muted);border-bottom:1px solid rgba(255,255,255,0.08)">Mapato yanayogawika: <strong style="color:#34d399">' + data.distributable.toLocaleString() + ' TSH</strong> · Kiwango: <strong>' + data.per_hisa_rate + ' TSH</strong> kwa kila hisa 1</p>';
     html += '<table><thead><tr><th>Mwanachama</th><th class="right">Hisa</th><th class="right">Gawio Linalotazamiwa</th></tr></thead><tbody>';
     (data.members||[]).forEach(m => {
-      html += '<tr><td>' + esc(m.name) + ' (' + m.member_no + ')</td><td class="right monospace">' + m.hisa.toLocaleString() + '</td><td class="right monospace" style="color:var(--green)">' + m.gawio.toLocaleString() + ' TSH</td></tr>';
+      html += '<tr><td>' + esc(m.name) + ' (' + m.member_no + ')</td><td class="right monospace">' + m.hisa.toLocaleString() + '</td><td class="right monospace" style="color:#34d399;font-weight:700">' + m.gawio.toLocaleString() + ' TSH</td></tr>';
     });
     html += '</tbody></table></div>';
     document.getElementById('gawioArea').innerHTML = html;
@@ -751,8 +1125,8 @@ function renderMembersTable(members) {
     const isAct = m.status === 'active';
     const badgeClass = isAct ? 'badge-active' : 'badge-exited';
     rows += '<tr>';
-    rows += '<td><strong style="font-size:11.5px">' + esc(m.member_no) + '</strong></td>';
-    rows += '<td>' + esc(m.name) + (m.phone ? '<br><span style="font-size:11px;color:var(--text-muted)">' + esc(m.phone) + '</span>' : '') + '</td>';
+    rows += '<td><strong style="font-size:12px;font-family:monospace">' + esc(m.member_no) + '</strong></td>';
+    rows += '<td>' + esc(m.name) + (m.phone ? '<br><span style="font-size:11.5px;color:var(--text-muted);font-family:monospace">' + esc(m.phone) + '</span>' : '') + '</td>';
     rows += '<td><span class="badge ' + badgeClass + '">' + m.status + '</span></td>';
     rows += '<td class="right">';
     rows += '<button class="btn-sm" onclick="viewMemberStatement(\'' + esc(m.name) + '\')">Taarifa</button> ';
@@ -794,27 +1168,27 @@ async function viewMemberStatement(memberName) {
 }
 
 function renderStatementModal(s) {
-  let html = '<div style="margin-bottom:12px">';
-  html += '<p style="font-size:13.5px;color:var(--text-muted);margin-bottom:8px">Namba: <strong>' + s.member_no + '</strong> · Hali: <strong>' + s.status + '</strong></p>';
-  html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">';
-  html += '<div style="background:#f8fafc;padding:10px;border-radius:8px">Hisa<br><strong style="font-size:15px;color:var(--green)">' + s.hisa.toLocaleString() + ' TSH</strong></div>';
-  html += '<div style="background:#f8fafc;padding:10px;border-radius:8px">Akiba<br><strong style="font-size:15px;color:var(--green)">' + s.akiba.toLocaleString() + ' TSH</strong></div>';
-  html += '<div style="background:#f8fafc;padding:10px;border-radius:8px;grid-column:span 2">Deni la Mkopo<br><strong style="font-size:15px;color:' + (s.deni_lichangiwa > 0 ? 'var(--red)' : 'var(--text-main)') + '">' + s.deni_lichangiwa.toLocaleString() + ' TSH</strong></div>';
+  let html = '<div style="margin-bottom:16px">';
+  html += '<p style="font-size:14px;color:var(--text-muted);margin-bottom:12px">Namba: <strong style="color:#ffffff">' + s.member_no + '</strong> · Hali: <strong style="color:#34d399">' + s.status + '</strong></p>';
+  html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">';
+  html += '<div style="background:rgba(6,24,18,0.7);padding:14px;border-radius:12px;border:1px solid rgba(255,255,255,0.08)">Hisa<br><strong style="font-size:16px;color:#34d399;font-family:monospace">' + s.hisa.toLocaleString() + ' TSH</strong></div>';
+  html += '<div style="background:rgba(6,24,18,0.7);padding:14px;border-radius:12px;border:1px solid rgba(255,255,255,0.08)">Akiba<br><strong style="font-size:16px;color:#34d399;font-family:monospace">' + s.akiba.toLocaleString() + ' TSH</strong></div>';
+  html += '<div style="background:rgba(6,24,18,0.7);padding:14px;border-radius:12px;border:1px solid rgba(255,255,255,0.08);grid-column:span 2">Deni la Mkopo<br><strong style="font-size:16px;font-family:monospace;color:' + (s.deni_lichangiwa > 0 ? '#f87171' : 'var(--text-main)') + '">' + s.deni_lichangiwa.toLocaleString() + ' TSH</strong></div>';
   html += '</div>';
 
   if (s.loans && s.loans.length) {
-    html += '<h4 style="font-size:12.5px;margin-bottom:6px">Historia ya Mikopo</h4>';
+    html += '<h4 style="font-size:13px;margin-bottom:8px;color:#a7f3d0">Historia ya Mikopo</h4>';
     s.loans.forEach(l => {
-      html += '<div style="font-size:12px;padding:8px;background:#f1f5f9;border-radius:6px;margin-bottom:6px">';
-      html += 'Mkopo: <strong>' + l.principal.toLocaleString() + '</strong> (Riba ' + (l.rate*100) + '%) = ' + l.total_due.toLocaleString() + ' TSH<br>';
+      html += '<div style="font-size:12.5px;padding:10px;background:rgba(255,255,255,0.04);border-radius:8px;margin-bottom:8px;border:1px solid rgba(255,255,255,0.06)">';
+      html += 'Mkopo: <strong style="font-family:monospace">' + l.principal.toLocaleString() + '</strong> (Riba ' + (l.rate*100) + '%) = ' + l.total_due.toLocaleString() + ' TSH<br>';
       html += 'Kulipwa: ' + l.amount_paid.toLocaleString() + ' TSH · Hali: <strong>' + l.status + '</strong>';
       html += '</div>';
     });
   }
 
   if (s.transactions && s.transactions.length) {
-    html += '<h4 style="font-size:12.5px;margin-top:10px;margin-bottom:6px">Miamala ya Hivi Karibuni</h4>';
-    html += '<div style="max-height:180px;overflow-y:auto"><table style="font-size:11.5px"><thead><tr><th>Tarehe</th><th>Maelezo</th></tr></thead><tbody>';
+    html += '<h4 style="font-size:13px;margin-top:14px;margin-bottom:8px;color:#a7f3d0">Miamala ya Hivi Karibuni</h4>';
+    html += '<div style="max-height:200px;overflow-y:auto"><table style="font-size:12px"><thead><tr><th>Tarehe</th><th>Maelezo</th></tr></thead><tbody>';
     s.transactions.forEach(t => {
       html += '<tr><td>' + t.tx_date + '</td><td>' + esc(t.description) + '</td></tr>';
     });
@@ -835,17 +1209,17 @@ async function previewExit(memberName) {
       return;
     }
     const e = data;
-    let html = '<div style="font-size:13.5px;line-height:1.6">';
+    let html = '<div style="font-size:14px;line-height:1.6">';
     html += '<p>Mwanachama: <strong>' + esc(e.name) + ' (' + e.member_no + ')</strong></p>';
-    html += '<p>Hisa: <strong>' + e.hisa.toLocaleString() + ' TSH</strong></p>';
-    html += '<p>Akiba: <strong>' + e.akiba.toLocaleString() + ' TSH</strong></p>';
-    html += '<p style="border-top:1px solid var(--border);padding-top:8px;margin-top:8px">Jumla inayorejeshwa: <strong style="color:var(--green);font-size:15px">' + e.payable.toLocaleString() + ' TSH</strong></p>';
-    html += '<p style="font-size:12px;color:var(--text-muted);margin-top:8px;background:#f8fafc;padding:8px;border-radius:8px">' + esc(e.note) + '</p>';
+    html += '<p>Hisa: <strong class="monospace">' + e.hisa.toLocaleString() + ' TSH</strong></p>';
+    html += '<p>Akiba: <strong class="monospace">' + e.akiba.toLocaleString() + ' TSH</strong></p>';
+    html += '<p style="border-top:1px solid rgba(255,255,255,0.1);padding-top:10px;margin-top:10px">Jumla inayorejeshwa: <strong style="color:#34d399;font-size:16px" class="monospace">' + e.payable.toLocaleString() + ' TSH</strong></p>';
+    html += '<p style="font-size:12.5px;color:var(--text-muted);margin-top:10px;background:rgba(6,24,18,0.7);padding:10px;border-radius:10px;border:1px solid rgba(255,255,255,0.06)">' + esc(e.note) + '</p>';
 
     if (e.can_exit) {
-      html += '<div style="margin-top:14px;display:flex;gap:8px">';
-      html += '<button class="btn-cancel" style="flex:1;padding:10px;border-radius:8px" onclick="closeModal()">Ghairi</button>';
-      html += '<button class="btn-confirm" style="flex:1;padding:10px;border-radius:8px;background:var(--red)" onclick="confirmExitFromModal(\'' + esc(e.name) + '\')">Thibitisha Kutoka</button>';
+      html += '<div style="margin-top:18px;display:flex;gap:12px">';
+      html += '<button class="btn-cancel" style="flex:1;padding:12px;border-radius:10px" onclick="closeModal()">Ghairi</button>';
+      html += '<button class="btn-confirm" style="flex:1;padding:12px;border-radius:10px;background:var(--accent-rose)" onclick="confirmExitFromModal(\'' + esc(e.name) + '\')">Thibitisha Kutoka</button>';
       html += '</div>';
     }
     html += '</div>';
@@ -868,7 +1242,6 @@ async function loadMeeting() {
     if (!data.ok) return;
     let html = '<div class="table-wrap"><div class="table-header"><span>Ripoti ya Kutaniko — ' + data.date + '</span>';
     
-    // WhatsApp Group Share Link
     const waText = encodeURIComponent(
       `📊 RIPOTI YA KUTANIKO - ${groupSettings.group_name || 'VICOBA'}\n` +
       `Tarehe: ${data.date}\n\n` +
@@ -880,17 +1253,17 @@ async function loadMeeting() {
     );
     html += `<a href="https://api.whatsapp.com/send?text=${waText}" target="_blank" class="btn-sm btn-wa-sm" style="text-decoration:none">📲 WhatsApp Group</a></div>`;
 
-    html += '<div style="padding:10px 14px;display:flex;justify-content:space-between;font-size:12.5px;background:#f8fafc">';
-    html += '<span>Kuingia: <strong style="color:var(--green)">' + data.day_cash_in.toLocaleString() + ' TSH</strong></span>';
-    html += '<span>Kutoka: <strong style="color:var(--red)">' + data.day_cash_out.toLocaleString() + ' TSH</strong></span>';
-    html += '<span>Baki Tasani: <strong>' + data.cash_balance.toLocaleString() + ' TSH</strong></span></div>';
+    html += '<div style="padding:14px 20px;display:flex;justify-content:space-between;font-size:13.5px;background:rgba(6,24,18,0.5);border-bottom:1px solid rgba(255,255,255,0.08)">';
+    html += '<span>Kuingia: <strong style="color:#34d399" class="monospace">' + data.day_cash_in.toLocaleString() + ' TSH</strong></span>';
+    html += '<span>Kutoka: <strong style="color:#f87171" class="monospace">' + data.day_cash_out.toLocaleString() + ' TSH</strong></span>';
+    html += '<span>Baki Tasani: <strong class="monospace">' + data.cash_balance.toLocaleString() + ' TSH</strong></span></div>';
 
     if (data.entries.length === 0) {
-      html += '<p style="padding:20px;text-align:center;color:var(--text-muted)">Hakuna shughuli za kifedha zilizofanyika leo bado.</p>';
+      html += '<p style="padding:24px;text-align:center;color:var(--text-muted)">Hakuna shughuli za kifedha zilizofanyika leo bado.</p>';
     } else {
       html += '<table><thead><tr><th>#</th><th>Aina</th><th>Maelezo</th><th class="right">Ingia (D)</th><th class="right">Toka (C)</th></tr></thead><tbody>';
       data.entries.forEach(e => {
-        html += '<tr><td>' + e.journal_id + '</td><td><span class="badge" style="background:#e2e8f0">' + e.kind + '</span></td><td>' + esc(e.description) + '</td>';
+        html += '<tr><td>' + e.journal_id + '</td><td><span class="badge" style="background:rgba(255,255,255,0.1);color:#ffffff">' + e.kind + '</span></td><td>' + esc(e.description) + '</td>';
         html += '<td class="right monospace">' + (e.debit ? e.debit.toLocaleString() : '—') + '</td><td class="right monospace">' + (e.credit ? e.credit.toLocaleString() : '—') + '</td></tr>';
       });
       html += '</tbody></table>';
@@ -915,18 +1288,18 @@ async function openSettingsModal() {
   html += '<div class="form-group"><label>Jina la Kikundi</label><input type="text" id="set_group_name" value="' + esc(groupSettings.group_name||'') + '"></div>';
   html += '<div class="form-group"><label>M-Pesa Till / Paybill / Namba ya Simu</label><input type="text" id="set_mpesa_till" placeholder="mfano: 554433 au 0712345678" value="' + esc(groupSettings.mpesa_till||'') + '"></div>';
   html += '<div class="form-group"><label>M-Pesa Registered Name (Jina la Akaunti)</label><input type="text" id="set_mpesa_name" placeholder="mfano: VICOBA KIKUNDI" value="' + esc(groupSettings.mpesa_name||'') + '"></div>';
-  html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">';
+  html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">';
   html += '<div class="form-group"><label>Riba ya Mkopo (%)</label><input type="number" id="set_interest_rate_pct" value="' + esc(groupSettings.interest_rate_pct||'10') + '"></div>';
   html += '<div class="form-group"><label>Muda wa Mkopo (Wiki)</label><input type="number" id="set_loan_weeks" value="' + esc(groupSettings.loan_weeks||'12') + '"></div>';
   html += '</div>';
   html += '<div class="form-group"><label>Cheo cha Kukopa (Multiple ya Hisa, mfano: 3x)</label><input type="number" id="set_eligibility_multiple" value="' + esc(groupSettings.eligibility_multiple||'3') + '"></div>';
   
-  html += '<hr style="margin:14px 0;border:none;border-top:1px solid var(--border)">';
-  html += '<h4 style="font-size:13px;margin-bottom:10px;color:var(--green)">🤖 Injini ya AI ya Local (100% Offline)</h4>';
+  html += '<hr style="margin:16px 0;border:none;border-top:1px solid rgba(255,255,255,0.1)">';
+  html += '<h4 style="font-size:13.5px;margin-bottom:12px;color:#34d399">🤖 Injini ya AI ya Local (100% Offline)</h4>';
   html += '<div class="form-group"><label>Local LLM Server Endpoint URL</label><input type="text" id="set_local_llm_url" placeholder="http://localhost:11434/v1/chat/completions au http://localhost:8080/v1/chat/completions" value="' + esc(groupSettings.local_llm_url||'http://localhost:11434/v1/chat/completions') + '"></div>';
   html += '<div class="form-group"><label>Local Model Name (Jina la Model)</label><input type="text" id="set_local_llm_model" placeholder="cactus, qwen2.5, gemma2, llama3" value="' + esc(groupSettings.local_llm_model||'cactus') + '"></div>';
   
-  html += '<button type="submit" class="btn-confirm" style="width:100%;padding:12px;margin-top:10px">Hifadhi Mipangilio ✓</button>';
+  html += '<button type="submit" class="btn-confirm" style="width:100%;padding:14px;margin-top:12px">Hifadhi Mipangilio ✓</button>';
   html += '</form>';
   openModal('⚙️ Mipangilio ya Kikundi & Local AI', html);
 }
@@ -964,7 +1337,7 @@ function openRegisterModal() {
   html += '<div class="form-group"><label>Jina Kamili la Mwanachama *</label><input type="text" id="reg_name" placeholder="mfano: Juma Ally" required autofocus></div>';
   html += '<div class="form-group"><label>Namba ya Simu</label><input type="text" id="reg_phone" placeholder="mfano: 0712345678"></div>';
   html += '<div class="form-group"><label>Namba ya Mwanachama (Optional)</label><input type="text" id="reg_no" placeholder="Acha wazi kutoa BSDA-001 kiotomatiki"></div>';
-  html += '<button type="submit" class="btn-confirm" style="width:100%;padding:12px;margin-top:10px">✓ Msajili Mwanachama</button>';
+  html += '<button type="submit" class="btn-confirm" style="width:100%;padding:14px;margin-top:12px">✓ Msajili Mwanachama</button>';
   html += '</form>';
   openModal('➕ Sajili Mwanachama Mpya', html);
 }

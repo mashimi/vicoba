@@ -52,7 +52,7 @@ def group_position(conn: sqlite3.Connection) -> dict:
     bima = ledger.display_balance(conn, "bima")
 
     member_rows = conn.execute(
-        "SELECT id, name, member_no, status FROM members ORDER BY name"
+        "SELECT * FROM members ORDER BY name"
     ).fetchall()
     member_summaries = []
     total_hisa = 0

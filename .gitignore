@@ -21,3 +21,5 @@ env/
 .idea/
 .DS_Store
 Thumbs.db
+# Temporary scratch files
+_t.txt

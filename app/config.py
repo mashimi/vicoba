@@ -50,6 +50,43 @@ def treasurer_pin() -> str:
     return os.environ.get("TREASURER_PIN", "")
 
 
+# ── OpenWA (WhatsApp gateway) integration ────────────────────────────────
+
+
+def openwa_url() -> str:
+    """Base URL of the OpenWA WhatsApp API Gateway (default is Docker default)."""
+    return os.environ.get("OPENWA_URL", "http://localhost:2785")
+
+
+def openwa_api_key() -> str:
+    """OpenWA API key sent as `X-API-Key` on send-text requests."""
+    return os.environ.get("OPENWA_API_KEY", "")
+
+
+def openwa_session_id() -> str:
+    """OpenWA session used when auto-replying on WhatsApp."""
+    return os.environ.get("OPENWA_SESSION_ID", "")
+
+
+def openwa_webhook_secret() -> str:
+    """Shared secret OpenWA signs webhook bodies with (`X-OpenWA-Signature`).
+
+    Empty string disables signature verification (handy for local testing,
+    but always set it in production)."""
+    return os.environ.get("OPENWA_WEBHOOK_SECRET", "")
+
+
+def openwa_treasurer_numbers() -> list:
+    """WhatsApp phone numbers allowed to run privileged commands
+    (register, expense, exit, payout). Digits only, comma-separated:
+    OPENWA_TREASURER_NUMBERS=0712345678,0755123456"""
+    raw = os.environ.get("OPENWA_TREASURER_NUMBERS", "")
+    return [n.strip() for n in raw.split(",") if n.strip()]
+
+
+
+
+
 def today() -> str:
     return date.today().isoformat()
 

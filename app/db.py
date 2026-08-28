@@ -75,6 +75,27 @@ CREATE TABLE IF NOT EXISTS commit_log (
     receipt_json    TEXT NOT NULL,
     created_at      TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
 );
+
+-- Multi-user RBAC: the first account is mwenyekiti (chair → admin).
+-- Rank order mirrors the committee: mwenyekiti > mhazinaji > katibu.
+CREATE TABLE IF NOT EXISTS users (
+    id          INTEGER PRIMARY KEY,
+    name        TEXT NOT NULL,
+    role        TEXT NOT NULL DEFAULT 'katibu',  -- mwenyekiti | mhazinaji | katibu
+    pin_hash    TEXT NOT NULL,
+    phone       TEXT,                            -- WhatsApp ID binding (12-digit intl)
+    is_active   INTEGER NOT NULL DEFAULT 1,
+    created_at  TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
+);
+
+CREATE TABLE IF NOT EXISTS audit_log (
+    id          INTEGER PRIMARY KEY,
+    user_id     INTEGER REFERENCES users(id),
+    action      TEXT NOT NULL,       -- login | settings_change | user_created | ...
+    detail      TEXT,
+    ip_addr     TEXT,
+    created_at  TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
+);
 """
 
 DEFAULT_SETTINGS = {
@@ -88,6 +109,7 @@ DEFAULT_SETTINGS = {
     "local_llm_url": "http://localhost:11434/v1/chat/completions",
     "local_llm_model": "cactus",
     "llm_provider": "local",     # local | anthropic | rule
+    "webhook_secret": "",        # generated at init; protects /api/webhook/make
 }
 
 
@@ -150,6 +172,28 @@ def init_db() -> None:
             conn.execute(
                 "INSERT INTO settings(key, value) VALUES('secret', ?)", (config.new_secret(),)
             )
+        # Webhook secret protects /api/webhook/make from forgery (X-VICOBA-Secret).
+        if not conn.execute("SELECT value FROM settings WHERE key='webhook_secret'").fetchone():
+            conn.execute(
+                "INSERT INTO settings(key, value) VALUES('webhook_secret', ?)",
+                (config.new_secret(),),
+            )
+
+        # Migrate the legacy single-PIN setup (pin_hash + treasurer_name settings)
+        # into the first user row so the RBAC model is immediately consistent.
+        # That account becomes the chairperson (mwenyekiti) — the bootstrap admin.
+        if not conn.execute("SELECT 1 FROM users").fetchone():
+            legacy_hash = conn.execute(
+                "SELECT value FROM settings WHERE key='pin_hash'"
+            ).fetchone()
+            if legacy_hash:
+                legacy_name = conn.execute(
+                    "SELECT value FROM settings WHERE key='treasurer_name'"
+                ).fetchone()
+                conn.execute(
+                    "INSERT INTO users(name, role, pin_hash) VALUES(?, 'mwenyekiti', ?)",
+                    (legacy_name["value"] if legacy_name else "Mhazinaji", legacy_hash["value"]),
+                )
     finally:
         conn.close()
 

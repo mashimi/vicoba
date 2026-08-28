@@ -4,21 +4,19 @@ Two-phase architecture (from the review's Section 7):
   1. POST /parse  → rule-based (or LLM) parser returns structured intent
   2. POST /commit → deterministic Python executes the validated intent atomically
 
-Authentication: a simple treasurer PIN stored in settings. Every mutation
-is logged with the actor identity.
+Authentication: 3-tier committee RBAC (Mwenyekiti → Mhazinaji → Katibu) with
+PIN logins. Every mutation is logged with the actor identity.
 """
-import hashlib
-import hmac
 import json
 import secrets
 from dataclasses import asdict
 from typing import Optional
 
-from fastapi import FastAPI, Form, Request, Response, HTTPException
+from fastapi import Depends, FastAPI, Form, Request, Response, HTTPException
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
-from . import config, db, ledger
+from . import auth, config, db, ledger, members, wa_bridge
 from .commits import (
     commit_contribute,
     commit_exit,
@@ -47,46 +45,18 @@ templates = Jinja2Templates(directory=str(config.BASE_DIR / "templates"))
 # ── Helpers ─────────────────────────────────────────────────────────────
 
 
-def _actor(request: Request) -> str:
-    """Return the authenticated actor name from the session cookie."""
-    pin = request.cookies.get("vicoba_pin")
-    if not pin:
-        raise HTTPException(status_code=401, detail="Hakuna uhakika. Ingia PIN kwanza.")
-    conn = db.connect()
-    try:
-        stored = db.get_setting(conn, "pin_hash", "")
-        if not stored or not hmac.compare_digest(pin, stored):
-            raise HTTPException(status_code=401, detail="PIN si sahihi. Jaribu tena.")
-        return db.get_setting(conn, "treasurer_name", "Mhazinaji")
-    finally:
-        conn.close()
-
-
-def _actor_from_cookie(request: Request) -> str:
-    """Like _actor but for non-exception paths (returns 'unknown' if no auth)."""
-    pin = request.cookies.get("vicoba_pin")
-    if not pin:
-        return "unknown"
-    conn = db.connect()
-    try:
-        stored = db.get_setting(conn, "pin_hash", "")
-        if stored and hmac.compare_digest(pin, stored):
-            return db.get_setting(conn, "treasurer_name", "Mhazinaji")
-    finally:
-        conn.close()
-    return "unknown"
-
-
-def _hash_pin(pin: str) -> str:
-    return hashlib.sha256(pin.encode()).hexdigest()
-
-
 def _ok(data: dict) -> JSONResponse:
     return JSONResponse({"ok": True, **data})
 
 
 def _err(msg: str, code: str = "error", status: int = 200) -> JSONResponse:
     return JSONResponse({"ok": False, "error": msg, "code": code}, status_code=status)
+
+
+def _safe_settings(row_map: dict) -> dict:
+    """Public settings view — never expose secrets/PIN material to the UI."""
+    secret_keys = {"pin_hash", "secret", "webhook_secret"}
+    return {k: v for k, v in row_map.items() if k not in secret_keys}
 
 
 # ── Startup ─────────────────────────────────────────────────────────────
@@ -106,28 +76,40 @@ def login_page(request: Request):
 
 
 @app.post("/login")
-def login(request: Request, pin: str = Form(...), name: str = Form(default="Mhazinaji")):
+def login(request: Request, pin: str = Form(...), name: str = Form(default="Mwenyekiti")):
+    """PIN login against the `users` table.
+
+    When the system has no users yet this is first-time setup: the first
+    account is created as *mwenyekiti* (chairperson / bootstrap admin), who
+    can then create the treasurer (mhazinaji) and secretary (katibu).
+    """
+    hashed = auth.hash_pin(pin)
+    ip = request.client.host if request.client else ""
     conn = db.connect()
     try:
-        stored = db.get_setting(conn, "pin_hash", "")
-        if not stored:
-            # First-time setup: this PIN becomes the treasurer PIN
-            hashed = _hash_pin(pin)
-            conn.execute("INSERT INTO settings(key, value) VALUES('pin_hash', ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", (hashed,))
-            conn.execute("INSERT INTO settings(key, value) VALUES('treasurer_name', ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", (name.strip(),))
+        if not conn.execute("SELECT 1 FROM users").fetchone():
+            # First-time setup — the creator becomes the chairperson.
+            display = name.strip() or "Mwenyekiti"
+            conn.execute(
+                "INSERT INTO users(name, role, pin_hash) VALUES(?, 'mwenyekiti', ?)",
+                (display, hashed),
+            )
+            auth.audit(conn, None, "login", f"First-run account created: {display}", ip)
             conn.commit()
-            response = RedirectResponse(url="/", status_code=303)
-            response.set_cookie("vicoba_pin", hashed, httponly=True, max_age=86400 * 30, samesite="strict")
-            return response
-        if hmac.compare_digest(_hash_pin(pin), stored):
-            response = RedirectResponse(url="/", status_code=303)
-            response.set_cookie("vicoba_pin", _hash_pin(pin), httponly=True, max_age=86400 * 30, samesite="strict")
-            return response
-        return templates.TemplateResponse(
-            "login.html", {"request": request, "error": "PIN si sahihi. Jaribu tena."}
-        )
+        else:
+            user = auth.find_active_user(conn, hashed)
+            if not user:
+                return templates.TemplateResponse(
+                    "login.html", {"request": request, "error": "PIN si sahihi. Jaribu tena."}
+                )
+            auth.audit(conn, user["id"], "login", "Successful PIN login", ip)
+            conn.commit()
     finally:
         conn.close()
+
+    response = RedirectResponse(url="/", status_code=303)
+    response.set_cookie("vicoba_pin", hashed, httponly=True, max_age=86400 * 30, samesite="strict")
+    return response
 
 
 @app.get("/logout")
@@ -135,6 +117,42 @@ def logout():
     response = RedirectResponse(url="/login", status_code=303)
     response.delete_cookie("vicoba_pin")
     return response
+
+
+@app.get("/api/me")
+def api_me(user: dict = Depends(auth.get_current_user)):
+    """Current user + role (drives UI visibility decisions)."""
+    return _ok({
+        "user": {
+            "id": user["id"],
+            "name": user["name"],
+            "role": user["role"],
+            "role_label": auth.role_label(user["role"]),
+        }
+    })
+
+
+@app.post("/api/auth/change-pin")
+def api_change_pin(request: Request, old_pin: str = Form(...), new_pin: str = Form(...)):
+    """Change the *current* user's PIN (requires the old PIN)."""
+    user = auth.session_user(request)
+    if not user:
+        return _err("Ingia PIN kwanza.", "auth", status=401)
+    if len(new_pin) < 4:
+        return _err("PIN mpya iwe na tarakimu 4 na zaidi.", "invalid_pin")
+    conn = db.connect()
+    try:
+        row = conn.execute(
+            "SELECT * FROM users WHERE id=? AND pin_hash=?", (user["id"], auth.hash_pin(old_pin))
+        ).fetchone()
+        if not row:
+            return _err("PIN ya sasa si sahihi.", "bad_current_pin")
+        conn.execute("UPDATE users SET pin_hash=? WHERE id=?", (auth.hash_pin(new_pin), user["id"]))
+        auth.audit(conn, user["id"], "pin_changed", "PIN changed", request.client.host if request.client else "")
+        conn.commit()
+    finally:
+        conn.close()
+    return _ok({"message": "PIN imebadilishwa ✓"})
 
 
 # ── Web UI ───────────────────────────────────────────────────────────────
@@ -166,13 +184,16 @@ async def parse_endpoint(request: Request, text: str = Form(...)):
 
 
 @app.post("/commit")
-def commit_endpoint(request: Request, data: str = Form(...)):
-    """Execute a parsed intent. The frontend sends the intent JSON after
-    the user taps [Thibitisha]. Idempotency key prevents double execution."""
-    try:
-        actor = _actor(request)
-    except HTTPException as e:
-        return _err(e.detail, "auth", status=401)
+def commit_endpoint(
+    request: Request,
+    data: str = Form(...),
+    user: dict = Depends(auth.get_treasurer),
+):
+    """Execute a parsed intent (treasurer or chairperson only).
+
+    The frontend sends the intent JSON after the user taps [Thibitisha].
+    Idempotency key prevents double execution."""
+    actor = user["name"]
 
     try:
         payload = json.loads(data)
@@ -361,18 +382,18 @@ def api_get_settings():
     conn = db.connect()
     try:
         rows = conn.execute("SELECT key, value FROM settings").fetchall()
-        return _ok({"settings": {r["key"]: r["value"] for r in rows}})
+        return _ok({"settings": _safe_settings({r["key"]: r["value"] for r in rows})})
     finally:
         conn.close()
 
 
 @app.post("/api/settings")
-def api_update_settings(request: Request, data: str = Form(...)):
-    try:
-        actor = _actor(request)
-    except HTTPException as e:
-        return _err(e.detail, "auth", status=401)
-
+def api_update_settings(
+    request: Request,
+    data: str = Form(...),
+    user: dict = Depends(auth.get_admin),
+):
+    """Change group settings — chairperson (mwenyekiti) only."""
     try:
         payload = json.loads(data)
     except Exception as e:
@@ -385,16 +406,235 @@ def api_update_settings(request: Request, data: str = Form(...)):
                 "INSERT INTO settings(key, value) VALUES(?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
                 (str(k), str(v)),
             )
+        auth.audit(
+            conn, user["id"], "settings_change", f"Updated {sorted(payload)}",
+            request.client.host if request.client else "",
+        )
         conn.commit()
         return _ok({"message": "Mipangilio imesasishwa kikamilifu ✓"})
     finally:
         conn.close()
 
 
+# ── User management (mwenyekiti only) ──────────────────────────────────────
+
+
+@app.get("/api/admin/users")
+def api_list_users(user: dict = Depends(auth.get_admin)):
+    conn = db.connect()
+    try:
+        rows = conn.execute(
+            "SELECT id, name, role, phone, is_active, created_at FROM users ORDER BY id"
+        ).fetchall()
+        return _ok({"users": [dict(r) for r in rows]})
+    finally:
+        conn.close()
+
+
+@app.post("/api/admin/users")
+def api_create_user(
+    request: Request,
+    name: str = Form(...),
+    role: str = Form(...),
+    phone: str = Form(default=""),
+    user: dict = Depends(auth.get_admin),
+):
+    """Create a new committee member with an auto-generated temporary PIN."""
+    role = role.strip().lower()
+    if role not in auth.ROLES:
+        return _err(f"Jukumu '{role}' halijulikani. Tumia: katibu, mhazinaji, mwenyekiti.", "invalid_role")
+    name = name.strip()
+    if not (2 <= len(name) <= 60):
+        return _err("Jina liwe na herufi 2-60.", "invalid_name")
+
+    temp_pin = f"{secrets.randbelow(10000):04d}"
+    phone_clean = "".join(ch for ch in (phone or "") if ch.isdigit()) or None
+
+    conn = db.connect()
+    try:
+        conn.execute(
+            "INSERT INTO users(name, role, pin_hash, phone) VALUES(?, ?, ?, ?)",
+            (name, role, auth.hash_pin(temp_pin), phone_clean),
+        )
+        auth.audit(
+            conn, user["id"], "user_created", f"{name} ({role})",
+            request.client.host if request.client else "",
+        )
+        conn.commit()
+    finally:
+        conn.close()
+    return _ok({
+        "message": f"{name} ameongezwa kama {auth.role_label(role)}.",
+        "temp_pin": temp_pin,
+        "warning": "Mwambie abadili PIN mara moja.",
+    })
+
+
+# ── WhatsApp webhook (OpenWA gateway) ─────────────────────────────────────
+#
+# Flow:  member sends Swahili command via WhatsApp → OpenWA `message.received`
+#        → this endpoint → existing parse/commit engine → auto Swahili reply.
+
+WHATSAPP_RESTRICTED = {"expense", "exit", "payout"}
+
+
+async def _wa_read_only(chat_id: str, query, formatter, action_name: str = "read_only") -> JSONResponse:
+    """Run a pure-SELECT report and reply; open to any WhatsApp sender."""
+    try:
+        conn = db.connect()
+        try:
+            data = query(conn)
+        finally:
+            conn.close()
+        await wa_bridge.send_reply(chat_id, formatter(data))
+        return _ok({"handled": True, "action": action_name})
+    except AppError as e:
+        await wa_bridge.send_reply(chat_id, f"⚠️ {e.message}")
+        return _ok({"handled": True, "error": e.message})
+
+
+@app.post("/api/webhook/whatsapp")
+async def webhook_whatsapp(request: Request):
+    """OpenWA gateway webhook — WhatsApp ⟷ VICOBA treasurer.
+
+    OpenWA POSTs HMAC-signed ``message.received`` events here. The message
+    body is treated as a Swahili VICOBA command, executed with the existing
+    deterministic engine, and answered with a short Swahili receipt/statement.
+    """
+    raw = await request.body()
+
+    secret = config.openwa_webhook_secret()
+    if secret and not wa_bridge.verify_signature(
+        raw, request.headers.get("X-OpenWA-Signature", ""), secret
+    ):
+        return _err("Sahihi ya WhatsApp si sahihi.", "bad_signature", status=401)
+
+    try:
+        data = json.loads(raw or b"{}")
+    except Exception:
+        return _err("Payload batili.", "invalid_payload", status=400)
+
+    if data.get("event") != "message.received":
+        # Ack session.status / message.ack / group.* untouched.
+        return _ok({"handled": False, "event": data.get("event")})
+
+    msg = data.get("data", {})
+    text = (msg.get("body") or msg.get("text") or "").strip()
+    chat_id = msg.get("from") or msg.get("chatId") or ""
+    contact = msg.get("contact") or {}
+    sender_phone = wa_bridge.chat_from_id(chat_id)
+
+    if not text:
+        await wa_bridge.send_reply(chat_id, wa_bridge.HELP_TEXT)
+        return _ok({"handled": True, "action": "empty"})
+
+    if config.llm_enabled():
+        from .llm_parser import parse as llm_parse
+        intent = await llm_parse(text)
+    else:
+        intent = rule_parse(text)
+
+    # Read-only reports are open to any WhatsApp sender.
+    if intent.action == "member_statement":
+        return await _wa_read_only(
+            chat_id,
+            lambda conn: member_statement(conn, intent.member),
+            wa_bridge.statement_text,
+            action_name="member_statement",
+        )
+    if intent.action == "group_position":
+        return await _wa_read_only(
+            chat_id, group_position, wa_bridge.group_position_text,
+            action_name="group_position",
+        )
+    if intent.action == "who_unpaid":
+        return await _wa_read_only(
+            chat_id, lambda conn: who_hasnt_paid_today(conn, {}), wa_bridge.unpaid_text,
+            action_name="who_unpaid",
+        )
+
+    if intent.action == "unknown":
+        await wa_bridge.send_reply(chat_id, wa_bridge.HELP_TEXT)
+        return _ok({"handled": True, "action": "unknown"})
+
+    # Sender identity — phone is the WhatsApp chat id without the @suffix.
+    conn = db.connect()
+    try:
+        sender_member = wa_bridge.resolve_member_by_phone(conn, sender_phone)
+        treasurer_in_users = auth.whatsapp_treasurer(conn, sender_phone)
+    finally:
+        conn.close()
+    # Static env list remains a supported fallback for treasurer phones.
+    is_treasurer = (sender_phone in config.openwa_treasurer_numbers()) or treasurer_in_users
+    is_known = sender_member is not None
+
+    # Private funds-moving / member-removal commands → treasurer (or chair) only.
+    if intent.action in WHATSAPP_RESTRICTED and not is_treasurer:
+        await wa_bridge.send_reply(chat_id, wa_bridge.auth_denied_text(intent.action))
+        return _ok({"handled": True, "action": intent.action, "authorized": False})
+
+    # Registration must come from a known member or the treasurer.
+    if intent.action == "register" and not (is_treasurer or is_known):
+        await wa_bridge.send_reply(chat_id, wa_bridge.auth_denied_text("register"))
+        return _ok({"handled": True, "action": "register", "authorized": False})
+
+    # Money-moving commands must come from a recognised member (or treasurer).
+    if intent.action in ("contribute", "fee", "fine", "loan", "repay") and not (is_treasurer or is_known):
+        await wa_bridge.send_reply(chat_id, wa_bridge.auth_denied_text("member"))
+        return _ok({"handled": True, "action": intent.action, "authorized": False})
+
+    # Self-registration: attach the sender's own number when none typed.
+    if intent.action == "register":
+        amounts = dict(intent.amounts or {})
+        if not amounts.get("phone") and sender_phone:
+            amounts["phone"] = wa_bridge.phone_digits(sender_phone)[-9:]
+        intent.amounts = amounts
+
+    # If the command didn't name anyone, attribute it to the sender.
+    if intent.action in ("contribute", "repay", "fine", "loan", "exit", "payout") and not intent.member and sender_member:
+        intent.member = sender_member["name"]
+
+    actor = f"WhatsApp ({sender_phone or chat_id})"
+    idem = data.get("idempotencyKey") or data.get("deliveryId") or ""
+    idem_key = f"wa-{idem}" if idem else f"wa-{secrets.token_hex(8)}"
+
+    try:
+        with db.transaction() as conn:
+            receipt = _dispatch(conn, intent, actor, idem_key)
+        reply = wa_bridge.receipt_text(receipt)
+    except DuplicateCommit as e:
+        receipt = {**e.receipt, "duplicate": True}
+        reply = wa_bridge.receipt_text(receipt)
+    except AppError as e:
+        await wa_bridge.send_reply(chat_id, f"⚠️ {e.message}")
+        return _ok({"handled": True, "action": intent.action, "error": e.message})
+
+    await wa_bridge.send_reply(chat_id, reply)
+    return _ok({"handled": True, "action": intent.action, "receipt": receipt})
+
+
+# ── Make.com / SMS webhook ───────────────────────────────────────────────
+# Actions that move group funds out or remove members are deliberately refused
+# here — they require an authenticated in-app login by a treasurer/admin.
+
+MAKE_RESTRICTED = {"expense", "payout", "exit"}
+
+
 @app.post("/api/webhook/make")
 async def webhook_make(request: Request):
     """Webhook endpoint for Make.com / Tasker / SMS Gateway integration.
-    Allows automated SMS parsing and transaction recording from M-Pesa notifications."""
+
+    Verifies the X-VICOBA-Secret header (set as the `webhook_secret` setting)
+    and refuses outbound / member-removal actions to prevent wire fraud.
+    Allows automated SMS parsing and transaction recording from M-Pesa SMS."""
+    conn = db.connect()
+    try:
+        secret_ok = auth.webhook_secret_valid(conn, request.headers.get("x-vicoba-secret", ""))
+    finally:
+        conn.close()
+    if not secret_ok:
+        return _err("Siri ya webhook si sahihi.", "auth", status=401)
+
     try:
         data = await request.json()
     except Exception:
@@ -418,6 +658,12 @@ async def webhook_make(request: Request):
 
     if intent.action == "unknown":
         return _err(f"Haikuweza kutambua ujumbe: '{text}'", "unknown_intent", status=400)
+
+    if intent.action in MAKE_RESTRICTED:
+        return _err(
+            "Kitendo hiki kihitaji kuingia mfumo moja kwa moja (Hazina/Mwenyekiti).",
+            "forbidden", status=403,
+        )
 
     # Auto-resolve member by phone if name missing in intent
     if not intent.member and sender:

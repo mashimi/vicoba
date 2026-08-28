@@ -35,7 +35,14 @@ def register(
         row = conn.execute(
             "SELECT member_no FROM members ORDER BY id DESC LIMIT 1"
         ).fetchone()
-        last = int(row["member_no"].split("-")[-1]) if row else 0
+        if row:
+            try:
+                last = int(row["member_no"].split("-")[-1])
+            except (ValueError, IndexError):
+                # Fallback: use total count if last number is non-standard
+                last = conn.execute("SELECT COUNT(*) FROM members").fetchone()[0]
+        else:
+            last = 0
         member_no = f"BSDA-{last + 1:03d}"
 
     cur = conn.execute(
