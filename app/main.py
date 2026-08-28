@@ -8,12 +8,14 @@ Authentication: 3-tier committee RBAC (Mwenyekiti → Mhazinaji → Katibu) with
 PIN logins. Every mutation is logged with the actor identity.
 """
 import json
+import logging
 import secrets
+from contextlib import asynccontextmanager
 from dataclasses import asdict
-from typing import Optional
 
 from fastapi import Depends, FastAPI, Form, Request, Response, HTTPException
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from . import auth, config, db, ledger, members, wa_bridge
@@ -38,8 +40,18 @@ from .reports import (
     who_hasnt_paid_today,
 )
 
-app = FastAPI(title="VICOBA Digital Treasurer")
+logger = logging.getLogger("vicoba")
+
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    db.init_db()
+    yield
+
+
+app = FastAPI(title="VICOBA Digital Treasurer", lifespan=lifespan)
 templates = Jinja2Templates(directory=str(config.BASE_DIR / "templates"))
+app.mount("/static", StaticFiles(directory=str(config.BASE_DIR / "static")), name="static")
 
 
 # ── Helpers ─────────────────────────────────────────────────────────────
@@ -49,8 +61,19 @@ def _ok(data: dict) -> JSONResponse:
     return JSONResponse({"ok": True, **data})
 
 
-def _err(msg: str, code: str = "error", status: int = 200) -> JSONResponse:
+def _err(msg: str, code: str = "error", status: int = 400) -> JSONResponse:
     return JSONResponse({"ok": False, "error": msg, "code": code}, status_code=status)
+
+
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException):
+    """Render HTTP errors (401/403 from auth dependencies, 404 routing, ...)
+    in the same {ok:false, error, code} JSON shape the UI already checks."""
+    return JSONResponse(
+        {"ok": False, "error": str(exc.detail), "code": "http_error"},
+        status_code=exc.status_code,
+        headers=exc.headers,
+    )
 
 
 def _safe_settings(row_map: dict) -> dict:
@@ -59,20 +82,12 @@ def _safe_settings(row_map: dict) -> dict:
     return {k: v for k, v in row_map.items() if k not in secret_keys}
 
 
-# ── Startup ─────────────────────────────────────────────────────────────
-
-
-@app.on_event("startup")
-def startup():
-    db.init_db()
-
-
 # ── Auth ─────────────────────────────────────────────────────────────────
 
 
 @app.get("/login", response_class=HTMLResponse)
 def login_page(request: Request):
-    return templates.TemplateResponse("login.html", {"request": request})
+    return templates.TemplateResponse(request=request, name="login.html", context={"request": request})
 
 
 @app.post("/login")
@@ -82,40 +97,72 @@ def login(request: Request, pin: str = Form(...), name: str = Form(default="Mwen
     When the system has no users yet this is first-time setup: the first
     account is created as *mwenyekiti* (chairperson / bootstrap admin), who
     can then create the treasurer (mhazinaji) and secretary (katibu).
+
+    Success issues a random opaque session token in an HttpOnly cookie;
+    failed attempts are rate limited per client IP.
     """
-    hashed = auth.hash_pin(pin)
     ip = request.client.host if request.client else ""
+    if auth.login_rate_limited(ip):
+        return templates.TemplateResponse(
+            request=request, name="login.html",
+            status_code=429,
+            context={
+                "request": request,
+                "error": "Majaribio mengi yameshindikana. Subiri dakika 10 kabla ya kujaribu tena.",
+            },
+        )
+
     conn = db.connect()
     try:
         if not conn.execute("SELECT 1 FROM users").fetchone():
             # First-time setup — the creator becomes the chairperson.
             display = name.strip() or "Mwenyekiti"
-            conn.execute(
+            cur = conn.execute(
                 "INSERT INTO users(name, role, pin_hash) VALUES(?, 'mwenyekiti', ?)",
-                (display, hashed),
+                (display, auth.hash_pin(pin)),
             )
-            auth.audit(conn, None, "login", f"First-run account created: {display}", ip)
+            auth.audit(conn, cur.lastrowid, "login", f"First-run account created: {display}", ip)
+            token = auth.create_session(conn, cur.lastrowid)
             conn.commit()
         else:
-            user = auth.find_active_user(conn, hashed)
+            user, needs_upgrade = auth.verify_login(conn, pin)
             if not user:
+                auth.record_login_failure(ip)
                 return templates.TemplateResponse(
-                    "login.html", {"request": request, "error": "PIN si sahihi. Jaribu tena."}
+                    request=request, name="login.html",
+                    context={"request": request, "error": "PIN si sahihi. Jaribu tena."},
                 )
+            auth.clear_login_failures(ip)
+            if needs_upgrade:
+                auth.upgrade_legacy_pin(conn, user["id"], pin)
+                auth.audit(conn, user["id"], "pin_rehash", "Legacy PIN hash upgraded to PBKDF2", ip)
             auth.audit(conn, user["id"], "login", "Successful PIN login", ip)
+            token = auth.create_session(conn, user["id"])
             conn.commit()
     finally:
         conn.close()
 
     response = RedirectResponse(url="/", status_code=303)
-    response.set_cookie("vicoba_pin", hashed, httponly=True, max_age=86400 * 30, samesite="strict")
+    response.set_cookie(
+        auth.SESSION_COOKIE, token,
+        httponly=True, max_age=86400 * 30,
+        samesite="strict", secure=request.url.scheme == "https",
+    )
     return response
 
 
 @app.get("/logout")
-def logout():
+def logout(request: Request):
+    token = request.cookies.get(auth.SESSION_COOKIE)
+    if token:
+        conn = db.connect()
+        try:
+            auth.destroy_session(conn, token)
+            conn.commit()
+        finally:
+            conn.close()
     response = RedirectResponse(url="/login", status_code=303)
-    response.delete_cookie("vicoba_pin")
+    response.delete_cookie(auth.SESSION_COOKIE)
     return response
 
 
@@ -134,7 +181,11 @@ def api_me(user: dict = Depends(auth.get_current_user)):
 
 @app.post("/api/auth/change-pin")
 def api_change_pin(request: Request, old_pin: str = Form(...), new_pin: str = Form(...)):
-    """Change the *current* user's PIN (requires the old PIN)."""
+    """Change the *current* user's PIN (requires the old PIN).
+
+    Every existing session of the user is revoked and a fresh session
+    cookie is issued, so other devices are logged out.
+    """
     user = auth.session_user(request)
     if not user:
         return _err("Ingia PIN kwanza.", "auth", status=401)
@@ -142,17 +193,22 @@ def api_change_pin(request: Request, old_pin: str = Form(...), new_pin: str = Fo
         return _err("PIN mpya iwe na tarakimu 4 na zaidi.", "invalid_pin")
     conn = db.connect()
     try:
-        row = conn.execute(
-            "SELECT * FROM users WHERE id=? AND pin_hash=?", (user["id"], auth.hash_pin(old_pin))
-        ).fetchone()
-        if not row:
+        if not auth.verify_pin(user["pin_hash"], old_pin):
             return _err("PIN ya sasa si sahihi.", "bad_current_pin")
         conn.execute("UPDATE users SET pin_hash=? WHERE id=?", (auth.hash_pin(new_pin), user["id"]))
+        auth.destroy_user_sessions(conn, user["id"])
+        token = auth.create_session(conn, user["id"])
         auth.audit(conn, user["id"], "pin_changed", "PIN changed", request.client.host if request.client else "")
         conn.commit()
     finally:
         conn.close()
-    return _ok({"message": "PIN imebadilishwa ✓"})
+    response = JSONResponse({"ok": True, "message": "PIN imebadilishwa ✓"})
+    response.set_cookie(
+        auth.SESSION_COOKIE, token,
+        httponly=True, max_age=86400 * 30,
+        samesite="strict", secure=request.url.scheme == "https",
+    )
+    return response
 
 
 # ── Web UI ───────────────────────────────────────────────────────────────
@@ -160,15 +216,25 @@ def api_change_pin(request: Request, old_pin: str = Form(...), new_pin: str = Fo
 
 @app.get("/", response_class=HTMLResponse)
 def index(request: Request):
-    return templates.TemplateResponse("index.html", {"request": request, "llm": config.llm_enabled()})
+    return templates.TemplateResponse(
+        request=request, name="index.html",
+        context={"request": request, "llm": config.llm_enabled()},
+    )
 
 
 # ── Parse (phase 1: no side effects) ─────────────────────────────────────
 
 
 @app.post("/parse")
-async def parse_endpoint(request: Request, text: str = Form(...)):
-    """Parse Swahili text into a structured intent. No DB writes."""
+async def parse_endpoint(
+    request: Request,
+    text: str = Form(...),
+    user: dict = Depends(auth.get_current_user),
+):
+    """Parse Swahili text into a structured intent. No DB writes.
+
+    Requires login: with an LLM provider configured every call costs money,
+    so an open endpoint would be a cost-abuse vector."""
     try:
         if config.llm_enabled():
             from .llm_parser import parse as llm_parse
@@ -177,6 +243,7 @@ async def parse_endpoint(request: Request, text: str = Form(...)):
             intent = rule_parse(text)
         return _ok({"intent": asdict(intent)})
     except Exception as e:
+        logger.exception("Parse failed")
         return _err(f"Hitilafu ya kupata maana: {e}", "parse_error")
 
 
@@ -198,8 +265,8 @@ def commit_endpoint(
     try:
         payload = json.loads(data)
         intent = ParsedIntent(**{k: payload.get(k) for k in ParsedIntent.__dataclass_fields__})
-    except (json.JSONDecodeError, TypeError) as e:
-        return _err(f"Data batili: {e}", "invalid_data")
+    except (json.JSONDecodeError, TypeError):
+        return _err("Data batili: si JSON halali.", "invalid_data")
 
     idem_key = payload.get("idempotency_key") or secrets.token_hex(16)
 
@@ -211,8 +278,9 @@ def commit_endpoint(
         return _ok(e.receipt)  # already committed — return original receipt
     except AppError as e:
         return _err(e.message, e.code)
-    except Exception as e:
-        return _err(f"Hitilafu: {e}", "server_error")
+    except Exception:
+        logger.exception("Commit failed for actor=%s", actor)
+        return _err("Samahani, hitilafu ya ndani ya mfumo. Jaribu tena baadae.", "server_error", status=500)
 
 
 def _dispatch(conn, intent: ParsedIntent, actor: str, idem_key: str) -> dict:
@@ -265,7 +333,7 @@ def _dispatch(conn, intent: ParsedIntent, actor: str, idem_key: str) -> dict:
 
 
 @app.get("/api/statement/{member_name}")
-def api_statement(member_name: str):
+def api_statement(member_name: str, user: dict = Depends(auth.get_current_user)):
     try:
         conn = db.connect()
         try:
@@ -278,7 +346,7 @@ def api_statement(member_name: str):
 
 
 @app.get("/api/group")
-def api_group():
+def api_group(user: dict = Depends(auth.get_current_user)):
     conn = db.connect()
     try:
         result = group_position(conn)
@@ -288,7 +356,7 @@ def api_group():
 
 
 @app.get("/api/meeting")
-def api_meeting():
+def api_meeting(user: dict = Depends(auth.get_current_user)):
     conn = db.connect()
     try:
         result = meeting_sheet(conn)
@@ -298,7 +366,7 @@ def api_meeting():
 
 
 @app.get("/api/unpaid")
-def api_unpaid():
+def api_unpaid(user: dict = Depends(auth.get_current_user)):
     conn = db.connect()
     try:
         result = who_hasnt_paid_today(conn, {})
@@ -308,7 +376,7 @@ def api_unpaid():
 
 
 @app.get("/api/gawio")
-def api_gawio():
+def api_gawio(user: dict = Depends(auth.get_current_user)):
     conn = db.connect()
     try:
         result = gawio_estimate(conn)
@@ -333,7 +401,7 @@ def api_health():
 
 
 @app.get("/api/members")
-def api_members():
+def api_members(user: dict = Depends(auth.get_current_user)):
     conn = db.connect()
     try:
         rows = conn.execute(
@@ -348,7 +416,7 @@ def api_members():
 
 
 @app.get("/api/export/meeting.csv")
-def export_meeting_csv():
+def export_meeting_csv(user: dict = Depends(auth.get_current_user)):
     conn = db.connect()
     try:
         sheet = meeting_sheet(conn)
@@ -366,7 +434,7 @@ def export_meeting_csv():
 
 
 @app.get("/api/exit/{member_name}")
-def api_exit(member_name: str):
+def api_exit(member_name: str, user: dict = Depends(auth.get_current_user)):
     conn = db.connect()
     try:
         member = members.resolve(conn, member_name)
@@ -378,7 +446,7 @@ def api_exit(member_name: str):
         conn.close()
 
 @app.get("/api/settings")
-def api_get_settings():
+def api_get_settings(user: dict = Depends(auth.get_current_user)):
     conn = db.connect()
     try:
         rows = conn.execute("SELECT key, value FROM settings").fetchall()
@@ -396,8 +464,8 @@ def api_update_settings(
     """Change group settings — chairperson (mwenyekiti) only."""
     try:
         payload = json.loads(data)
-    except Exception as e:
-        return _err(f"Data batili: {e}")
+    except Exception:
+        return _err("Data batili: si JSON halali.", status=400)
 
     conn = db.connect()
     try:
@@ -688,8 +756,9 @@ async def webhook_make(request: Request):
         return _ok({"received": text, "receipt": e.receipt, "duplicate": True})
     except AppError as e:
         return _err(e.message, e.code)
-    except Exception as e:
-        return _err(f"Hitilafu: {e}", "server_error")
+    except Exception:
+        logger.exception("Make webhook commit failed")
+        return _err("Samahani, hitilafu ya ndani ya mfumo. Jaribu tena baadae.", "server_error", status=500)
 
 
 if __name__ == "__main__":

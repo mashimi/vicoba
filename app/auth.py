@@ -2,15 +2,24 @@
 
 Models the real VICOBA committee structure (kamati): the chairperson
 (mwenyekiti, admin) outranks the treasurer (mhazinaji) who outranks the
-secretary (katibu, read-only). Replaces the old single-treasurer-PIN model.
+secretary (katibu, read-only).
 
-Identity is a PIN (4-digit, hashed with SHA-256 exactly like the legacy app);
-the sha256 digest is stored in the session cookie and used as the lookup key
-so every endpoint stays stateless.
+Security model (updated):
+- PINs are hashed with PBKDF2-HMAC-SHA256 (100k iterations, hardware-calibrated)
+  plus a per-user random salt. Legacy plain-SHA256 rows are transparently
+  upgraded on the user's next successful login.
+- Sessions are random opaque tokens in an HttpOnly cookie; only the SHA-256
+  of the token is stored (sessions table), so a leaked database does not
+  yield replayable session cookies.
+- Failed logins are rate limited per client IP (in-memory, per process).
 """
 import hashlib
+import hmac
 import re
+import secrets
 import sqlite3
+import threading
+import time
 
 from fastapi import HTTPException, Request
 
@@ -34,24 +43,116 @@ def role_label(role: str) -> str:
     return ROLE_LABEL.get(role, role)
 
 
+# ── PIN hashing (PBKDF2-HMAC-SHA256 + per-user salt) ──────────────────────
+
+# Calibrated on the reference deployment hardware: ~0.16s per hash, which
+# keeps worst-case login (verify every active committee user, typically ≤3)
+# under half a second while making offline brute-force of the 4-digit PIN
+# space expensive. Raise this on faster hardware if desired.
+PBKDF2_ITERATIONS = 100_000
+SESSION_TTL_DAYS = 30
+
+
 def hash_pin(pin: str) -> str:
-    return hashlib.sha256(pin.encode("utf-8")).hexdigest()
+    """Hash a PIN with PBKDF2-HMAC-SHA256 and a fresh random salt.
+
+    Stored format: ``pbkdf2_sha256$<iterations>$<salt_hex>$<hash_hex>``
+    """
+    salt = secrets.token_hex(16)
+    digest = hashlib.pbkdf2_hmac(
+        "sha256", pin.encode("utf-8"), bytes.fromhex(salt), PBKDF2_ITERATIONS
+    )
+    return f"pbkdf2_sha256${PBKDF2_ITERATIONS}${salt}${digest.hex()}"
 
 
-def find_active_user(conn: sqlite3.Connection, pin_hash: str) -> sqlite3.Row:
-    return conn.execute(
-        "SELECT * FROM users WHERE pin_hash=? AND is_active=1", (pin_hash,)
-    ).fetchone()
+def _is_legacy_hash(stored: str) -> bool:
+    """Legacy rows stored an unsalted SHA-256 hex digest (64 hex chars)."""
+    return bool(stored) and len(stored) == 64 and all(
+        c in "0123456789abcdef" for c in stored.lower()
+    )
+
+
+def verify_pin(stored: str, pin: str) -> bool:
+    """Constant-time verification supporting both legacy and PBKDF2 formats."""
+    if _is_legacy_hash(stored):
+        legacy = hashlib.sha256(pin.encode("utf-8")).hexdigest()
+        return hmac.compare_digest(legacy, stored.lower())
+    try:
+        _, iterations, salt_hex, hash_hex = stored.split("$")
+        digest = hashlib.pbkdf2_hmac(
+            "sha256", pin.encode("utf-8"), bytes.fromhex(salt_hex), int(iterations)
+        )
+        return hmac.compare_digest(digest.hex(), hash_hex)
+    except (ValueError, TypeError):
+        return False
+
+
+def needs_rehash(stored: str) -> bool:
+    """True when the stored hash uses the weak legacy scheme and should be
+    upgraded to PBKDF2 at the next successful login."""
+    return _is_legacy_hash(stored)
+
+
+def verify_login(conn: sqlite3.Connection, pin: str):
+    """Check `pin` against every active user (per-user salts rule out a direct
+    hash lookup). Returns (user_row, needs_upgrade) or (None, False)."""
+    for row in conn.execute("SELECT * FROM users WHERE is_active=1").fetchall():
+        if verify_pin(row["pin_hash"], pin):
+            return row, needs_rehash(row["pin_hash"])
+    return None, False
+
+
+def upgrade_legacy_pin(conn: sqlite3.Connection, user_id: int, pin: str) -> None:
+    """Re-hash a legacy plain-SHA256 PIN into the PBKDF2 format."""
+    conn.execute(
+        "UPDATE users SET pin_hash=? WHERE id=?", (hash_pin(pin), user_id)
+    )
+
+
+# ── Sessions (random opaque tokens, server-side state) ────────────────────
+
+SESSION_COOKIE = "vicoba_session"
+
+
+def _token_hash(token: str) -> str:
+    """Only the SHA-256 of the cookie token is persisted, so a stolen users
+    table cannot be replayed as session cookies."""
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
+def create_session(conn: sqlite3.Connection, user_id: int, ttl_days: int = SESSION_TTL_DAYS) -> str:
+    """Mint a new session token for the user and persist its hash."""
+    token = secrets.token_urlsafe(32)
+    conn.execute(
+        "INSERT INTO sessions(token_hash, user_id, expires_at) "
+        "VALUES(?, ?, datetime('now', 'localtime', ?))",
+        (_token_hash(token), user_id, f"+{ttl_days} days"),
+    )
+    return token
+
+
+def destroy_session(conn: sqlite3.Connection, token: str) -> None:
+    conn.execute("DELETE FROM sessions WHERE token_hash=?", (_token_hash(token),))
+
+
+def destroy_user_sessions(conn: sqlite3.Connection, user_id: int) -> None:
+    """Revoke every session of a user (used after a PIN change)."""
+    conn.execute("DELETE FROM sessions WHERE user_id=?", (user_id,))
 
 
 def session_user(request: Request):
     """Return the currently authenticated user dict, or None."""
-    pin = request.cookies.get("vicoba_pin")
-    if not pin:
+    token = request.cookies.get(SESSION_COOKIE)
+    if not token:
         return None
     conn = db.connect()
     try:
-        row = find_active_user(conn, pin)
+        row = conn.execute(
+            "SELECT u.* FROM sessions s JOIN users u ON u.id = s.user_id "
+            "WHERE s.token_hash=? AND s.expires_at > datetime('now', 'localtime') "
+            "AND u.is_active=1",
+            (_token_hash(token),),
+        ).fetchone()
         return dict(row) if row else None
     finally:
         conn.close()
@@ -107,8 +208,6 @@ def webhook_secret_valid(conn: sqlite3.Connection, header_value: str) -> bool:
     production always sets one via `init_db()` so this is only meaningful
     in existing installations that never generated a secret.
     """
-    import hmac
-
     expected = db.get_setting(conn, "webhook_secret", "")
     if not expected:
         return True
@@ -135,3 +234,34 @@ def whatsapp_treasurer(conn: sqlite3.Connection, phone: str) -> bool:
         if re.sub(r"\D", "", row["phone"])[-9:] == suffix and role_rank(row["role"]) >= 2:
             return True
     return False
+
+
+# ── Login rate limiting (in-memory, per process) ──────────────────────────
+# Good enough for the single-worker SQLite deployment this app targets; a
+# multi-worker setup would need a shared store (e.g. Redis).
+
+_LOGIN_WINDOW_SECONDS = 600      # 10 minute sliding window
+_LOGIN_MAX_FAILURES = 5
+
+_login_lock = threading.Lock()
+_login_failures: dict = {}       # ip -> list(failure timestamps)
+
+
+def login_rate_limited(ip: str) -> bool:
+    """True when this IP has too many recent failed logins."""
+    now = time.time()
+    with _login_lock:
+        recent = [t for t in _login_failures.get(ip, []) if now - t < _LOGIN_WINDOW_SECONDS]
+        _login_failures[ip] = recent
+        return len(recent) >= _LOGIN_MAX_FAILURES
+
+
+def record_login_failure(ip: str) -> None:
+    with _login_lock:
+        _login_failures.setdefault(ip, []).append(time.time())
+
+
+def clear_login_failures(ip: str) -> None:
+    """Reset the failure counter (called on successful login and by tests)."""
+    with _login_lock:
+        _login_failures.pop(ip, None)

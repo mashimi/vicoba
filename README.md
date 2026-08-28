@@ -31,11 +31,13 @@ A production-ready, Swahili-first digital treasurer web application for VICOBA (
 
 ### 1. Requirements
 - Python 3.10+
-- Dependencies: `fastapi`, `uvicorn`, `jinja2`, `httpx`, `pytest`, `python-multipart`
+- Runtime: `fastapi`, `uvicorn`, `jinja2`, `httpx`, `python-multipart`
+- Development: `pytest`, `ruff`
 
 ### 2. Install Dependencies
 ```bash
-pip install -r requirements.txt
+pip install -r requirements.txt            # runtime
+pip install -r requirements-dev.txt        # + test & lint tooling
 ```
 
 ### 3. Run the Application
@@ -45,6 +47,11 @@ python -m app.main
 Or with uvicorn directly:
 ```bash
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+```
+Or with Docker (database persisted on the `/data` volume):
+```bash
+docker build -t vicoba .
+docker run -p 8000:8000 -v vicoba-data:/data vicoba
 ```
 Open your browser at `http://localhost:8000`.
 
@@ -71,6 +78,16 @@ pytest
 ---
 
 ## 🔒 Security & Verification
-- PIN Authentication with HMAC SHA-256 password hashing.
+- PIN authentication with **PBKDF2-HMAC-SHA256** (100k iterations, per-user random salt).
+  Legacy unsalted-SHA256 rows are transparently upgraded at the user's next successful login.
+- **Server-side sessions**: the cookie holds a random opaque token (HttpOnly, SameSite=Strict,
+  Secure on HTTPS); only the token's SHA-256 is stored in the database, so a leaked database
+  cannot be replayed as live sessions. PIN changes revoke all existing sessions.
+- **Login rate limiting**: 5 failed attempts per 10 minutes per IP → 429 lockout window.
+- **RBAC on every data endpoint**: statements, group position, meeting sheet, unpaid tracker,
+  gawio, member list, CSV export, settings and the exit-settlement preview all require a
+  logged-in committee member; `/commit` requires mhazinaji+; user management requires mwenyekiti.
 - Idempotency key tracking on all commit operations.
 - Health endpoint (`/api/health`) for instant double-entry ledger balance verification.
+- **Backups**: `python scripts/backup_db.py --keep 14` takes a WAL-safe online snapshot of the
+  database (schedule it daily — this file holds the group's money records).

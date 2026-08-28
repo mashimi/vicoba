@@ -14,6 +14,7 @@ def _isolate_db(tmp_path, monkeypatch):
     db_file = str(tmp_path / "test.db")
     monkeypatch.setenv("VICOBA_DB", db_file)
     monkeypatch.setenv("GROUP_NAME", "Test VICOBA")
+    monkeypatch.setenv("USE_LLM_PARSER", "0")
     config.BASE_DIR = tmp_path
 
     conn = connect()
@@ -45,15 +46,17 @@ def test_login_and_logout(client):
     # First time login sets pin
     res = client.post("/login", data={"pin": "1234", "name": "Mhazinaji Test"}, follow_redirects=False)
     assert res.status_code == 303
-    assert "vicoba_pin" in client.cookies
+    assert "vicoba_session" in client.cookies
 
     # Logout removes cookie
     res = client.get("/logout", follow_redirects=False)
     assert res.status_code == 303
-    assert "vicoba_pin" not in client.cookies
+    assert "vicoba_session" not in client.cookies
 
 
 def test_parse_endpoint(client):
+    # /parse requires a logged-in user (LLM calls cost money)
+    client.post("/login", data={"pin": "1234", "name": "Mhazinaji Test"}, follow_redirects=False)
     res = client.post("/parse", data={"text": "Amina amelipa hisa 5000, jamii 1000"})
     assert res.status_code == 200
     data = res.json()
@@ -92,6 +95,8 @@ def test_health_endpoint(client):
 
 
 def test_export_meeting_csv(client):
+    # Meeting sheet export exposes member data — requires login
+    client.post("/login", data={"pin": "1234", "name": "Mhazinaji Test"}, follow_redirects=False)
     res = client.get("/api/export/meeting.csv")
     assert res.status_code == 200
     assert res.headers["content-type"].startswith("text/csv")
@@ -141,6 +146,7 @@ def test_make_webhook_integration(client):
 
 def test_offline_fallback_parser(client):
     # Even with local server unreachable (or no server running), parse returns valid intent via rule fallback
+    client.post("/login", data={"pin": "1234", "name": "Mhazinaji Test"}, follow_redirects=False)
     res = client.post("/parse", data={"text": "Amina amelipa hisa 5000, jamii 1000 ref QX11223344"})
     assert res.status_code == 200
     data = res.json()

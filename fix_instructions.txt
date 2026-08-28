@@ -1,0 +1,67 @@
+# VICOBA Digital Treasurer — Full Update Pass (fix_instructions.txt)
+# Verified against codebase on 2026-08-28. Baseline: 25 tests passing.
+
+1. PIN Hashing Upgrade (PBKDF2 + per-user salt, legacy migration)
+- Specific goal/outcome: Replace unsalted SHA-256 PIN storage with PBKDF2-HMAC-SHA256 (100k iterations, hardware-calibrated, random salt per user). Format: `pbkdf2_sha256$<iterations>$<salt_hex>$<hash_hex>`.
+- Any constraints or requirements: Must transparently verify legacy 64-hex plain-SHA256 hashes and upgrade them in-place on successful login (with audit entry). 4-digit PIN space means salt + slow KDF is mandatory. Verification must iterate active users since per-user salts prevent direct hash lookup.
+- Expected behavior: New users get PBKDF2 hashes; legacy users are auto-upgraded at first successful login; wrong PINs rejected without leaking which user existed.
+- Files to modify: app/auth.py, app/main.py (login + change-pin flow), README.md
+
+2. Server-Side Sessions (cookie no longer equals pin_hash)
+- Specific goal/outcome: Replace the `vicoba_pin` cookie (which stored SHA-256(PIN) — identical to the DB `pin_hash` column) with random opaque session tokens stored in a new `sessions` table (token_hash = SHA-256(token), user_id, expires_at). Cookie renamed `vicoba_session`.
+- Any constraints or requirements: Token from secrets.token_urlsafe(32); 30-day TTL; cookie HttpOnly + SameSite=strict + Secure when request scheme is https. Logout destroys the session row. PIN change invalidates all sessions for the user and issues a fresh one. sessions table created via CREATE TABLE IF NOT EXISTS (no migration break).
+- Expected behavior: DB leak no longer grants live sessions; sessions expire; logout revokes server-side.
+- Files to modify: app/auth.py, app/db.py, app/main.py, tests/test_api.py (cookie name)
+
+3. Authentication on All Data Endpoints (P0 leak fix)
+- Specific goal/outcome: Require katibu-or-higher auth on: /api/statement/{name}, /api/group, /api/meeting, /api/unpaid, /api/gawio, /api/members, /api/export/meeting.csv, /api/settings (GET), /api/exit/{name} (read-only settlement preview), and /parse (blocks anonymous LLM cost abuse). /api/health stays public (no member data; used by monitoring).
+- Any constraints or requirements: Correction — /api/exit is a read-only preview (members.exit_settlement computes, commit_exit mutates), so it needs auth but stays GET. UI fetches send cookies automatically; no frontend changes needed. Tests that call these endpoints anonymously must be updated.
+- Expected behavior: Unauthenticated requests get 401 JSON {ok:false, error, code}; logged-in SPA works unchanged.
+- Files to modify: app/main.py, tests/test_api.py, tests/test_security.py (new)
+
+
+4. Login Rate Limiting
+- Specific goal/outcome: In-memory per-IP failed-login tracker: max 5 failures per 10-minute window → 429 with Swahili message until window expires; success clears the IP's counter. Thread-safe (sync endpoints run in threadpool).
+- Any constraints or requirements: Must not break existing tests (they cause ≤2 failures total). Expose auth.clear_login_failures(ip) so tests can reset. Note limitation: per-process only (fine for single-worker SQLite deployment).
+- Expected behavior: 6th consecutive bad login returns 429; legitimate login resets counter.
+- Files to modify: app/auth.py, app/main.py, tests/test_security.py (new)
+
+5. Consistent Error Responses + No Internal Detail Leaks
+- Specific goal/outcome: _err() default status 400 (was 200). Global HTTPException handler converts 401/403 into the same {ok:false,error,code} JSON shape the frontend already checks (data.ok), so require_auth failures render properly in the SPA. Make.com webhook generic-error path must log the exception server-side (logging.exception) and return a generic Swahili message with status 500 — never str(e).
+- Any constraints or requirements: Frontend checks `data.ok` (not res.ok), verified — status code changes are safe. login.html re-render on bad PIN stays HTTP 200 (test asserts it).
+- Expected behavior: All errors are structured JSON with truthful HTTP status codes; no stack traces or exception text in responses.
+- Files to modify: app/main.py
+
+6. Modernize Deprecated FastAPI/Starlette Patterns
+- Specific goal/outcome: Replace @app.on_event("startup") with a lifespan asynccontextmanager. Switch all TemplateResponse calls to the request-first signature (request=..., name=..., context=...).
+- Any constraints or requirements: Tests construct TestClient(app) without context manager and the _isolate_db fixture builds the schema, so lifespan-only init_db matches current behavior. login.html uses {% if error %} — context keys must stay identical. Raise fastapi>=0.110.0 in requirements to guarantee starlette supports the new signature.
+- Expected behavior: No DeprecationWarnings on startup or template rendering; behavior unchanged.
+- Files to modify: app/main.py, requirements.txt
+
+7. Database Indexes for Report Queries
+- Specific goal/outcome: Add CREATE INDEX IF NOT EXISTS for: journal_lines(journal_id), journals(member_id), journals(tx_date), journals(kind), members(phone), members(name), loans(member_id), users(phone).
+- Any constraints or requirements: Appended inside the existing SCHEMA string so init_db() applies them idempotently on every start.
+- Expected behavior: Statement/meeting-sheet queries stay fast as the ledger grows; no behavior change.
+- Files to modify: app/db.py
+
+8. Project Tooling (requirements split, Dockerfile, CI, backup script)
+- Specific goal/outcome: Split pytest/ruff into requirements-dev.txt (runtime deps stay in requirements.txt). Add Dockerfile (python:3.12-slim, VICOBA_DB=/data/vicoba.db, VOLUME /data). Add .github/workflows/ci.yml (Python 3.10 + 3.12: pip install both files, ruff check app tests, pytest -q). Add scripts/backup_db.py using sqlite3 backup API with --keep retention. Add backups/ to .gitignore; delete leftover _t.txt.
+- Any constraints or requirements: No new runtime dependencies. Backup must use conn.backup() (safe with WAL).
+- Expected behavior: `pip install -r requirements.txt -r requirements-dev.txt && pytest` still works; docker build/run documented in README.
+- Files to modify: requirements.txt, requirements-dev.txt (new), Dockerfile (new), .github/workflows/ci.yml (new), scripts/backup_db.py (new), .gitignore, README.md, _t.txt (delete)
+
+9. Split index.html into Static Assets
+- Specific goal/outcome: Extract the <style> block (lines 11-581) to static/css/app.css and the <script> block (lines 722-1402) to static/js/app.js; replace with <link>/<script src="/static/js/app.js"> tags. Mount /static via StaticFiles.
+- Any constraints or requirements: VERIFIED SAFE: index.html contains zero {{ }} or {% %} occurrences, so extraction cannot break templating. Error handling checks data.ok in JS — unchanged.
+- Expected behavior: Page renders identically; templates/index.html drops from ~57KB to ~9KB; assets cacheable.
+- Files to modify: templates/index.html, static/css/app.css (new), static/js/app.js (new), app/main.py (mount)
+
+10. Test Coverage for the Security Changes
+- Specific goal/outcome: New tests/test_security.py covering: 401 on all newly-protected endpoints without login; session cookie is a random token (≠ SHA-256(PIN)); legacy plain-SHA256 pin_hash upgraded on login; rate limiter trips at 6th failure; /api/exit requires auth; /parse requires auth. Update test_api.py: cookie name vicoba_session, login before /parse and /api/export/meeting.csv.
+- Any constraints or requirements: Keep Swahili messaging conventions. All existing 25 tests must still pass after updates.
+- Expected behavior: Full suite green (25 existing + ~8 new tests).
+- Files to modify: tests/test_security.py (new), tests/test_api.py
+
+# Verification loop
+- Run `python -m pytest -q` after each chunk that touches app code.
+- Reread every edited file after the final run; rerun tests; fix and repeat until green.

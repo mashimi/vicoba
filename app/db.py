@@ -96,6 +96,26 @@ CREATE TABLE IF NOT EXISTS audit_log (
     ip_addr     TEXT,
     created_at  TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
 );
+
+-- Server-side sessions: the cookie carries a random token; only its SHA-256
+-- is stored here so a leaked database cannot be replayed as live logins.
+CREATE TABLE IF NOT EXISTS sessions (
+    token_hash TEXT PRIMARY KEY,
+    user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
+    expires_at TEXT NOT NULL
+);
+
+-- Query performance: member statements, meeting sheets and phone lookups.
+CREATE INDEX IF NOT EXISTS idx_journal_lines_journal ON journal_lines(journal_id);
+CREATE INDEX IF NOT EXISTS idx_journals_member       ON journals(member_id);
+CREATE INDEX IF NOT EXISTS idx_journals_tx_date      ON journals(tx_date);
+CREATE INDEX IF NOT EXISTS idx_journals_kind         ON journals(kind);
+CREATE INDEX IF NOT EXISTS idx_members_phone         ON members(phone);
+CREATE INDEX IF NOT EXISTS idx_members_name          ON members(name);
+CREATE INDEX IF NOT EXISTS idx_loans_member          ON loans(member_id);
+CREATE INDEX IF NOT EXISTS idx_users_phone           ON users(phone);
+CREATE INDEX IF NOT EXISTS idx_sessions_user         ON sessions(user_id);
 """
 
 DEFAULT_SETTINGS = {

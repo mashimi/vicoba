@@ -253,6 +253,6 @@ def test_change_pin_requires_correct_old(client):
         "/api/auth/change-pin",
         data={"old_pin": "0000", "new_pin": "5678"},
     )
-    assert res.status_code == 200
+    assert res.status_code == 400
     assert res.json()["ok"] is False
     assert res.json()["code"] == "bad_current_pin"
